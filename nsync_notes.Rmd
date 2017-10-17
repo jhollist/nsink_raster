@@ -1,0 +1,29 @@
+---
+title: "Notes on Nsync raster conversion"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# General Notes
+
+- need two rasters 
+    - relative load/removal
+        - this will be the trick for all of this
+        - Q's idea for lakes:
+            - All lake pixels == 0
+            - outlet of lake (along artifical flowpath) has removal
+    - flow path (are we doing this just for a single flow path or ALL possible flow paths)
+- Use flow path to get load/removal values along flow path
+    - First pixel is starting relative load
+    - Convert to vector with [1] = initial load and [n] = end of flow path
+    - use `cumprod()` to get total reduction
+    - What to use for flow path?
+        - Can we force `gdistance::shortestPath()` some how?
+        - Might need to dig into [TauDEM](http://hydrology.usu.edu/taudem/taudem5/downloads.html)
+- Other notes:
+    - `raster::terrain()` returns flow direction
+    - not clear if flow accumulation is available (won't need for individual path)
+        - `gdistance::accCost()` might work
