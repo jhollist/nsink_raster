@@ -27,3 +27,17 @@ knitr::opts_chunk$set(echo = TRUE)
     - `raster::terrain()` returns flow direction
     - not clear if flow accumulation is available (won't need for individual path)
         - `gdistance::accCost()` might work
+- Output from tool
+  - a flow path with:
+      - total removal
+      - summarized removal by class 
+  - Watershed map of removal from all possible flow paths
+- Possible source datasets
+  - NHD Plus
+      - Streams
+      - Look for rasters
+          - Burnt in DEM
+          - See what's available.
+
+
+   
