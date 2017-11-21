@@ -27,3 +27,14 @@ knitr::opts_chunk$set(echo = TRUE)
     - `raster::terrain()` returns flow direction
     - not clear if flow accumulation is available (won't need for individual path)
         - `gdistance::accCost()` might work
+
+# Notes for 2017-11-21
+
+- Look at NHD+ to see what data layers we can still 
+  - flow direction
+  - what else is there?
+  - Want to use becuase streams already burnt into DEM.
+  - Works for US (fine for now)
+- Jeff wants to work with existing ArcGIS server application to see what it does
+- http://clear.uconn.edu/projects/nsink/index.htm
+- Meet with Q to go over on Monday Nov 27.
