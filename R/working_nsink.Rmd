@@ -1,0 +1,100 @@
+---
+title: "Draft raster methodology in R"
+author:
+- Jeff Hollister
+- Q Kellogg
+date: '2017-11-27'
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+devtools::install_github("jimhester/archive")
+library(here)
+library(archive)
+library(httr)
+library(raster)
+library(sp)
+library(rgdal)
+library(tidyverse)
+library(sf)
+```
+This is a working script to be used to figure out the raster methodology for
+N-Sink.  It will be messy.
+
+# Step 0: Get Data
+## Data
+Grab flow direction and 12 Digist HUSCS from NHD Plus
+
+```{r}
+# Grab data if doesn't exist locally
+if(!file.exists(here("data/nhdplus_ne_fdr.7z"))){
+  fdr_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_01a_FdrFac_01.7z"
+  httr::GET(fdr_url, httr::write_disk(path = here("data/nhdplus_ne_fdr.7z")),progress())
+  archive_extract(here("data/nhdplus_ne_fdr.7z"), here("data"))
+}
+if(!file.exists(here("data/nhdplus_ne_huc12.7z"))){
+  huc12_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_WBDSnapshot_03.7z"
+  httr::GET(huc12_url, httr::write_disk(here("data/nhdplus_ne_huc12.7z")), httr::progress())
+  archive_extract(here("data/nhdplus_ne_huc12.7z"), here("data"))
+}
+fdr_ne <- raster(here("data/NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr/"))
+huc12_ne <- st_read(here("data/NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed.shp")) %>% st_transform(projection(fdr_ne))
+niantic_huc <- huc12_ne %>%
+  filter(HU_12_NAME == "Niantic River") 
+niantic_fdr <- crop(fdr_ne, as(niantic_huc,"Spatial"))
+```
+
+
+# Step 1: Generate flow path from user specified location
+
+
+NHD Plus Flow Direction
+TauDEM?
+raster::flowPath()
+
+```{r}
+plot(as(niantic_huc, "Spatial"))
+loc <- unlist(locator(1))
+example_fp <- flowPath(niantic_fdr, loc)
+example_fp_xy <- xyFromCell(niantic_fdr, example_fp)
+plot(niantic_fdr)
+plot(niantic_huc, add = T)
+lines(example_fp_xy)
+```
+
+# Step 2: Summarize land, stream, and lake removal 
+
+land removal is a constant made up of pixels that are vegetated Hydric Soils
+Combination of hydric soils from SSURGO and Vegetated land cover from NLCD
+Figuring this layer(s) out will be the most work.
+
+## Data
+https://github.com/ncss-tech and soilDB
+
+## Output
+
+What does the output for this look like? Table? Flow path with removal values?  Something else?
+
+Bare minimum is table of removal.  Per segment ideally.
+
+Example output #1 - landcover summary table - Along a 100 m buffer
+
+| Landcover Class | Total Area | 
+|-----------------|------------|
+| Developed       | XX         |
+| Forested        | XX         |
+| Wetland         | XX         |
+| Other           | XX         |
+
+Example output #2 - Nitrogen removal per segment (drop to integer values)
+
+| Segement Type | Length | Percent Removal | N in | N out |
+|---------------|--------|-----------------|------|-------|
+| Non-hydric    | 8156   | 0               | 100  | 100   |
+| Hydric        | 546    | 80              | 100  | 20    |
+| Stream        | XX     | 16              | 20   | 16.8  |
+| Lake/Pond     | XX     | 23              | 16.8 | 12.9  |
+| Stream        | XX     | 1               | 12.9 | 11.6  |
+
+
