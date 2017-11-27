@@ -4,8 +4,10 @@ author:
 - Jeff Hollister
 - Q Kellogg
 date: '2017-11-27'
-output: pdf_document
-editor_options: 
+output:
+  html_document:
+    df_print: paged
+editor_options:
   chunk_output_type: console
 ---
 ```{r}
@@ -54,8 +56,9 @@ TauDEM?
 raster::flowPath()
 
 ```{r}
-plot(as(niantic_huc, "Spatial"))
-loc <- unlist(locator(1))
+#plot(as(niantic_huc, "Spatial"))
+#loc <- unlist(locator(1))
+loc <- c(1950005,2295977)
 example_fp <- flowPath(niantic_fdr, loc)
 example_fp_xy <- xyFromCell(niantic_fdr, example_fp)
 plot(niantic_fdr)
