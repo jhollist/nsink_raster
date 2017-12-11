@@ -25,6 +25,11 @@ This is a working script to be used to figure out the raster methodology for
 N-Sink.  It will be messy.
 
 # Step 0: Get Data
+
+Eventually front-load data collection, for now do it by task.
+
+# Step 1: Generate flow path from user specified location
+
 ## Data
 Grab flow direction and 12 Digist HUSCS from NHD Plus
 
@@ -40,6 +45,11 @@ if(!file.exists(here("data/nhdplus_ne_huc12.7z"))){
   httr::GET(huc12_url, httr::write_disk(here("data/nhdplus_ne_huc12.7z")), httr::progress())
   archive_extract(here("data/nhdplus_ne_huc12.7z"), here("data"))
 }
+```
+
+NHDPlus available via two-digit HUCS, for individual applications need to pare down to HUC 12 (or 10).
+
+```{r}
 fdr_ne <- raster(here("data/NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr/"))
 huc12_ne <- st_read(here("data/NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed.shp")) %>% st_transform(projection(fdr_ne))
 niantic_huc <- huc12_ne %>%
@@ -47,17 +57,13 @@ niantic_huc <- huc12_ne %>%
 niantic_fdr <- crop(fdr_ne, as(niantic_huc,"Spatial"))
 ```
 
+## Calculate the flow path of interest
 
-# Step 1: Generate flow path from user specified location
-
-
-NHD Plus Flow Direction
-TauDEM?
-raster::flowPath()
+This can all be done direclty in r with `raster::flowPath()`
 
 ```{r}
-#plot(as(niantic_huc, "Spatial"))
-#loc <- unlist(locator(1))
+plot(as(niantic_huc, "Spatial"))
+#loc <- unlist(locator(1)) can use this for interactive
 loc <- c(1950005,2295977)
 example_fp <- flowPath(niantic_fdr, loc)
 example_fp_xy <- xyFromCell(niantic_fdr, example_fp)
@@ -73,7 +79,39 @@ Combination of hydric soils from SSURGO and Vegetated land cover from NLCD
 Figuring this layer(s) out will be the most work.
 
 ## Data
-https://github.com/ncss-tech and soilDB
+
+### soils:  https://github.com/ncss-tech and soilDB
+Soils are complicated...
+
+- https://gdg.sc.egov.usda.gov/GDGHome_DirectDownLoad.aspx
+- Can download by state - gives gridded mukey(?)
+  - https://nrcs.app.box.com/v/soils/folder/23623124719
+- Get hdyric data (yes no) from https://www.nrcs.usda.gov/Internet/FSE_DOCUMENTS/nrcseprd1316619.html
+  - currently have for all NE in "data/NRCS State Hydric Soils List.html"
+  - need to scrape this html to get table out into a data frame.
+- Need to output row and column from gSSURGO that have a match in hydric data frame.  
+- Create new raster from those matching row and columns as Hydric.  all other r,c are not hydric.
+
+### NLCD:  https://www.sciencebase.gov/catalog/item/4f70a43ce4b058caae3f8db3 (and zips on S3)
+
+### Waterbodies and Streams: NHDPlus
+
+Grab waterbody snapshot for NE from NHD Plus
+
+```{r}
+if(!file.exists(here("data/nhdplus_ne_snapshot.7z"))){
+  fdr_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_NHDSnapshot_04.7z"
+  httr::GET(fdr_url, httr::write_disk(path = here("data/nhdplus_ne_snapshot.7z")),progress())
+  archive_extract(here("data/nhdplus_ne_snapshot.7z"), here("data"))
+}
+```
+
+Waterbodies are in NHDWaterbodies and flowlines are in NHDFlowlines
+
+```{r}
+streams_ne <- st_read(here())
+waterbodies_ne <- st_read(here())
+```
 
 ## Output
 
