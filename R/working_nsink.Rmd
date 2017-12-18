@@ -11,7 +11,7 @@ editor_options:
   chunk_output_type: console
 ---
 ```{r}
-devtools::install_github("jimhester/archive")
+#devtools::install_github("jimhester/archive")
 library(here)
 library(archive)
 library(httr)
@@ -20,6 +20,7 @@ library(sp)
 library(rgdal)
 library(tidyverse)
 library(sf)
+library(FedData)
 ```
 This is a working script to be used to figure out the raster methodology for
 N-Sink.  It will be messy.
@@ -86,13 +87,39 @@ Soils are complicated...
 - https://gdg.sc.egov.usda.gov/GDGHome_DirectDownLoad.aspx
 - Can download by state - gives gridded mukey(?)
   - https://nrcs.app.box.com/v/soils/folder/23623124719
+  - This is on box.com.  Need to figure way to download from R, but it's big per state.  
 - Get hdyric data (yes no) from https://www.nrcs.usda.gov/Internet/FSE_DOCUMENTS/nrcseprd1316619.html
   - currently have for all NE in "data/NRCS State Hydric Soils List.html"
   - need to scrape this html to get table out into a data frame.
 - Need to output row and column from gSSURGO that have a match in hydric data frame.  
 - Create new raster from those matching row and columns as Hydric.  all other r,c are not hydric.
+- Have an example gSSURGO for CT in the data folder
+- the zip is in there too.  It was a bit weird and not directly unzippable. The source data and how to extract this needs to be figured out for reproducibilities sake!
+
+```{r, eval=FALSE}
+if(!file.exists(here("data/gssurgo_ct.gdb"))){
+  GET("")
+}
+# List layers in file geodatabase
+rgdal::ogrListLayers(here("/data/gSSURGO_CT.gdb"))
+# AAAAAAAAAAAAAAAAAAAHHHHHHHHHHH!!!!!!!!
+```
+
+For time being use NLCD wetlands class for hydric removal
 
 ### NLCD:  https://www.sciencebase.gov/catalog/item/4f70a43ce4b058caae3f8db3 (and zips on S3)
+
+Need to get NLCD from Sciencebase
+
+```{r}
+url <- "https://s3-us-west-2.amazonaws.com/prd-tnm/StagedProducts/NLCD/data/2011/landcover/3x3/NLCD2011_LC_N39W072.zip"
+
+# FedData better option
+if(!file.exists(here("data/niantic_NLCD_2011_landcover.tif"))){
+  niantic_nlcd <- get_nlcd(as(niantic_huc,"Spatial"), label = "niantic", extraction.dir = "data")
+}
+niantic_nlcd <- raster(here("data/niantic_NLCD_2011_landcover.tif"))
+```
 
 ### Waterbodies and Streams: NHDPlus
 
@@ -109,9 +136,23 @@ if(!file.exists(here("data/nhdplus_ne_snapshot.7z"))){
 Waterbodies are in NHDWaterbodies and flowlines are in NHDFlowlines
 
 ```{r}
-streams_ne <- st_read(here())
-waterbodies_ne <- st_read(here())
+ne_streams <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline.shp")) %>%
+  st_transform(st_crs(niantic_huc)) %>%
+  st_zm
+niantic_streams <- ne_streams %>%
+  slice(st_contains(niantic_huc, ne_streams)[[1]])
+ne_waterbodies <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDWaterbody.shp")) %>%
+  st_transform(st_crs(niantic_huc))
+niantic_waterbodies <- ne_waterbodies %>%
+  slice(st_contains(niantic_huc, ne_waterbodies)[[1]])
 ```
+
+Velocity estimates also in NHDPlus
+
+Vogel and EROM based.  Ask Q.
+
+\EROMExtension\EROM_MA0001 and EROM_mm0001 (tables) for the EROM ones and
+\VogelExtension\VogelFlow (table) which has Vogel Flow and Jobson Velocity.
 
 ## Output
 
