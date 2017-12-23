@@ -95,6 +95,11 @@ Soils are complicated...
 - Create new raster from those matching row and columns as Hydric.  all other r,c are not hydric.
 - Have an example gSSURGO for CT in the data folder
 - the zip is in there too.  It was a bit weird and not directly unzippable. The source data and how to extract this needs to be figured out for reproducibilities sake!
+    - FedData to the resue!  (maybe)
+
+```{r}
+niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo", "data/ssurgo")
+```
 
 ```{r, eval=FALSE}
 if(!file.exists(here("data/gssurgo_ct.gdb"))){
@@ -102,6 +107,7 @@ if(!file.exists(here("data/gssurgo_ct.gdb"))){
 }
 # List layers in file geodatabase
 rgdal::ogrListLayers(here("/data/gSSURGO_CT.gdb"))
+st_read(here("data/gSSURGO_CT.gdb","MUPOLYGON"))
 # AAAAAAAAAAAAAAAAAAAHHHHHHHHHHH!!!!!!!!
 ```
 
