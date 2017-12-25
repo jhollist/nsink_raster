@@ -99,10 +99,11 @@ Soils are complicated...
 
 ```{r}
 niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo", "data/ssurgo")
-niantic_hydro <- st_as_sf(niantic_ssurgo[[1]]) %>%
-  left_join(niantic_ssurgo[[2]]$component, by = "mukey") %>%
+niantic_hydric <- st_as_sf(niantic_ssurgo$spatial) %>%
+  mutate(mukey = as.numeric(as.character(MUKEY))) %>%
+  left_join(niantic_ssurgo$tabular$component, by = "mukey") %>%
   select(mukey, hydricrating) %>%
-  filter(hydricrating == "yes")
+  filter(hydricrating == "Yes") #not quite.  Doesn't look quite right...
 ```
 
 ```{r, eval=FALSE}
