@@ -98,12 +98,28 @@ Soils are complicated...
     - FedData to the resue!  (maybe)
 
 ```{r}
+#re-run
+ct600_ssurgo <- get_ssurgo(c("CT600"),"ct600","data/ssurgo/ct600","data/ssurgo/ct600")
+
 niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo", "data/ssurgo")
-niantic_hydric <- st_as_sf(niantic_ssurgo$spatial) %>%
+
+
+
+niantic_hydric <- st_as_sf(niantic_ssurgo$spatial) 
+
+
+%>%
   mutate(mukey = as.numeric(as.character(MUKEY))) %>%
-  left_join(niantic_ssurgo$tabular$component, by = "mukey") %>%
+  inner_join(niantic_ssurgo$tabular$component, by = "mukey") %>%
   select(mukey, hydricrating) %>%
-  filter(hydricrating == "Yes") #not quite.  Doesn't look quite right...
+  st_transform(proj4string(niantic_fdr))
+
+niantic_hydric_sp <- as(niantic_hydric,"Spatial")
+niantic_hydricrating <- niantic_hydric_sp$hydricrating
+niantic_hydric_r <- rasterize(niantic_hydric_sp, 
+                              niantic_fdr, 
+                              1)
+
 ```
 
 ```{r, eval=FALSE}
@@ -112,7 +128,11 @@ if(!file.exists(here("data/gssurgo_ct.gdb"))){
 }
 # List layers in file geodatabase
 rgdal::ogrListLayers(here("/data/gSSURGO_CT.gdb"))
-st_read(here("data/gSSURGO_CT.gdb","MUPOLYGON"))
+system("ogr2ogr -f CSV component.csv /data/gSSURGO_CT.gdb component")
+component <- read_csv(here("data/component.csv"))
+system("ogr2ogr -f CSV mapunit.csv gSSURGO_CT.gdb mapunit")
+mapunit <- read_csv(here("data/mapunit.csv"))
+x <- st_read(here("data/gSSURGO_CT.gdb"), "SAPOLYGON")
 # AAAAAAAAAAAAAAAAAAAHHHHHHHHHHH!!!!!!!!
 ```
 
