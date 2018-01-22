@@ -95,7 +95,11 @@ Soils are complicated...
 - Create new raster from those matching row and columns as Hydric.  all other r,c are not hydric.
 - Have an example gSSURGO for CT in the data folder
 - the zip is in there too.  It was a bit weird and not directly unzippable. The source data and how to extract this needs to be figured out for reproducibilities sake!
-    - FedData to the resue!  (maybe)
+    - FedData to the rescue!  (maybe)
+    
+Latest thinking on this quagmire (isn't that one of the soil types?)  Finest spatial resolution available from SSURGO is the Map Unit, yet, information in associated tables is at the component.  Components are not mapped, they are more like existential pieces of map units.  So, no way to get a binary hydric/not hydric at the 30m pixel.  Instead, components have a percentage associated with them.  So for istance, a single map unit could have 5 components in it.  We don't know where in the map unit those components exist, but we do know the proportion of each within the map unit.  I am assuming that the sum of the proportion of each component should equal 1 for each map unit.  Haven't checking this with data yet.
+
+So, the plan is to use a weighted removal.  For instance if a map unit has 3 components and 1 is not hydric and makes up 70% of the map unit, thus 30% of the map unit is hydric.  Thus any pixels in that map unit would have 24% removal (80% for hydric * 30% of that map unit being hydric).
 
 ```{r}
 #re-run
@@ -105,20 +109,19 @@ niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo
 
 
 
-niantic_hydric <- st_as_sf(niantic_ssurgo$spatial) 
+niantic_ssurgo_sf <- st_as_sf(niantic_ssurgo$spatial)
+names(niantic_ssurgo_sf) <- str_to_lower(names(niantic_ssurgo_sf))
+niantic_ssurgo_tbl <- niantic_ssurgo$tabular$component %>%
+  mutate(mukey = as(mukey, "character")) %>%
+  select(mukey, cokey, hydricrating, comppct.r) %>%
+  group_by(mukey, hydricrating) %>%
+  summarize(hydric_pct = sum(comppct.r))
 
-
-%>%
-  mutate(mukey = as.numeric(as.character(MUKEY))) %>%
-  inner_join(niantic_ssurgo$tabular$component, by = "mukey") %>%
-  select(mukey, hydricrating) %>%
-  st_transform(proj4string(niantic_fdr))
-
-niantic_hydric_sp <- as(niantic_hydric,"Spatial")
-niantic_hydricrating <- niantic_hydric_sp$hydricrating
-niantic_hydric_r <- rasterize(niantic_hydric_sp, 
-                              niantic_fdr, 
-                              1)
+niantic_hydric <- niantic_ssurgo_sf %>%
+  full_join(niantic_ssurgo_tbl, by = "mukey") %>%
+  filter(hydricrating == "Yes") %>%
+  filter(hydric_pct > 50)
+  
 
 ```
 
