@@ -125,25 +125,10 @@ niantic_hydric <- niantic_ssurgo_sf %>%
 
 ```
 
-```{r, eval=FALSE}
-if(!file.exists(here("data/gssurgo_ct.gdb"))){
-  GET("")
-}
-# List layers in file geodatabase
-rgdal::ogrListLayers(here("/data/gSSURGO_CT.gdb"))
-system("ogr2ogr -f CSV component.csv /data/gSSURGO_CT.gdb component")
-component <- read_csv(here("data/component.csv"))
-system("ogr2ogr -f CSV mapunit.csv gSSURGO_CT.gdb mapunit")
-mapunit <- read_csv(here("data/mapunit.csv"))
-x <- st_read(here("data/gSSURGO_CT.gdb"), "SAPOLYGON")
-# AAAAAAAAAAAAAAAAAAAHHHHHHHHHHH!!!!!!!!
-```
-
-For time being use NLCD wetlands class for hydric removal
 
 ### NLCD:  https://www.sciencebase.gov/catalog/item/4f70a43ce4b058caae3f8db3 (and zips on S3)
 
-Need to get NLCD from Sciencebase
+Swich this to FedData as it wraps science base locales.
 
 ```{r}
 url <- "https://s3-us-west-2.amazonaws.com/prd-tnm/StagedProducts/NLCD/data/2011/landcover/3x3/NLCD2011_LC_N39W072.zip"
