@@ -109,7 +109,8 @@ niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo
 
 
 
-niantic_ssurgo_sf <- st_as_sf(niantic_ssurgo$spatial)
+niantic_ssurgo_sf <- st_as_sf(niantic_ssurgo$spatial) %>%
+  st_transform(projection(fdr_ne))
 names(niantic_ssurgo_sf) <- str_to_lower(names(niantic_ssurgo_sf))
 niantic_ssurgo_tbl <- niantic_ssurgo$tabular$component %>%
   mutate(mukey = as(mukey, "character")) %>%
@@ -119,10 +120,9 @@ niantic_ssurgo_tbl <- niantic_ssurgo$tabular$component %>%
 
 niantic_hydric <- niantic_ssurgo_sf %>%
   full_join(niantic_ssurgo_tbl, by = "mukey") %>%
-  filter(hydricrating == "Yes") %>%
-  filter(hydric_pct > 50)
+  filter(hydricrating == "Yes") #%>%
+  #filter(hydric_pct > 50)
   
-
 ```
 
 
@@ -140,6 +140,14 @@ if(!file.exists(here("data/niantic_NLCD_2011_landcover.tif"))){
 niantic_nlcd <- raster(here("data/niantic_NLCD_2011_landcover.tif"))
 ```
 
+### Percent Impervious
+```{r}
+# FedData better option
+if(!file.exists(here("data/niantic_NLCD_2011_impervious.tif"))){
+  niantic_imp <- get_nlcd(as(niantic_huc,"Spatial"), dataset = "impervious", label = "niantic", extraction.dir = "data")
+}
+niantic_imp <- raster(here("data/niantic_NLCD_2011_impervious.tif"))
+```
 ### Waterbodies and Streams: NHDPlus
 
 Grab waterbody snapshot for NE from NHD Plus
@@ -172,6 +180,42 @@ Vogel and EROM based.  Ask Q.
 
 \EROMExtension\EROM_MA0001 and EROM_mm0001 (tables) for the EROM ones and
 \VogelExtension\VogelFlow (table) which has Vogel Flow and Jobson Velocity.
+
+## Combine data into Ze Super Raster
+
+### Input Datasets 
+1. Removal on land
+  - Hydric soils on non-impervious surface - 80% but weighted by percent hydric soil
+    - niantic_hydric - rasterize with value == 0.8*pct_hydric
+```{r}
+#calc per pixel removal value
+niantic_hydric_sp <- niantic_hydric %>%
+  mutate(n_removal = 0.8*(hydric_pct/100)) %>%
+  as("Spatial")
+niantic_hydric_removal <- raster::rasterize(niantic_hydric_sp,niantic_imp, 
+                                            field = "n_removal")
+niantic_imp_na <- niantic_imp
+niantic_imp_na[niantic_imp_na>0] <- NA 
+niantic_hydric_removal <- raster::mask(niantic_hydric_removal,niantic_imp_na)
+```
+2. Removal in Streams
+  - Mean reach depth - 0.2612 * Q ^ 0.3966
+    - From Kellog et al (2010) and references therein
+    - Q in cubic meters per second
+  - Time of travel in days
+    - From TOTMA in NHDPlus
+  - Calculate removal per reach - 1 - exp(-0.0513*(mean depth^-1.319)*TOTMA)
+  - Calculate per pixel removal ((reach removal/length of reach)*raster resolution)
+  - rasterize with that value
+3. Removal in Lakes and Ponds
+  - Qnorm approach may not be needed.
+  - Get residence time for each lake and pond should now be available from NHD Plus (in Years)
+  - Get mean depth (in meters)
+  - Removal 79.24-33.26*log10(mean depth/residence time)
+    - Need to identify the outlet pixel for all lakes and ponds and assing this value to that
+    - points??
+    - Rasterize this. 
+
 
 ## Output
 
