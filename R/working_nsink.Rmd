@@ -203,7 +203,7 @@ niantic_hydric_removal <- raster::mask(niantic_hydric_removal,niantic_imp_na)
     - From Kellog et al (2010) and references therein
     - Q in cubic meters per second
   - Time of travel in days
-    - From TOTMA in NHDPlus
+    - From TOTMA in NHDPlus (\NHDPlusAttributes\PlusFlowlineVAA)
   - Calculate removal per reach - 1 - exp(-0.0513*(mean depth^-1.319)*TOTMA)
   - Calculate per pixel removal ((reach removal/length of reach)*raster resolution)
   - rasterize with that value
