@@ -21,6 +21,7 @@ library(rgdal)
 library(tidyverse)
 library(sf)
 library(FedData)
+library(foreign)
 ```
 This is a working script to be used to figure out the raster methodology for
 N-Sink.  It will be messy.
@@ -45,6 +46,17 @@ if(!file.exists(here("data/nhdplus_ne_huc12.7z"))){
   huc12_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_WBDSnapshot_03.7z"
   httr::GET(huc12_url, httr::write_disk(here("data/nhdplus_ne_huc12.7z")), httr::progress())
   archive_extract(here("data/nhdplus_ne_huc12.7z"), here("data"))
+}
+if(!file.exists(here("data/nhdplus_ne_attributes.7z"))){
+  attr_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_NHDPlusAttributes_08.7z"
+  httr::GET(attr_url, httr::write_disk(here("data/nhdplus_ne_attributes.7z")), httr::progress())
+  archive_extract(here("data/nhdplus_ne_attributes.7z"), here("data"))
+}
+
+if(!file.exists(here("data/nhdplus_ne_erom.7z"))){
+  erom_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_EROMExtension_05.7z"
+  httr::GET(erom_url, httr::write_disk(here("data/nhdplus_ne_erom.7z")), httr::progress())
+  archive_extract(here("data/nhdplus_ne_erom.7z"), here("data"))
 }
 ```
 
@@ -201,12 +213,28 @@ niantic_hydric_removal <- raster::mask(niantic_hydric_removal,niantic_imp_na)
 2. Removal in Streams
   - Mean reach depth - 0.2612 * Q ^ 0.3966
     - From Kellog et al (2010) and references therein
-    - Q in cubic meters per second
+    - Q in cubic meters per second (cfs*0.028316846592)
   - Time of travel in days
     - From TOTMA in NHDPlus (\NHDPlusAttributes\PlusFlowlineVAA)
   - Calculate removal per reach - 1 - exp(-0.0513*(mean depth^-1.319)*TOTMA)
   - Calculate per pixel removal ((reach removal/length of reach)*raster resolution)
   - rasterize with that value
+```{r}
+q_dat <- foreign::read.dbf(here("data/NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF")) %>% 
+  select(comid = ComID,q_cfs = Q0001E) %>%
+  mutate(q_cms = q_cfs * 0.028316846592) %>%
+  mutate(mean_reach_depth = 0.2612 * (q_cms ^ 0.3966))
+tot_dat <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf"))%>%
+  select(comid = ComID,totma = TOTMA)
+stream_removal <- niantic_streams %>%
+  left_join(q_dat, by = c("COMID" = "comid")) %>%
+  left_join(tot_dat, by = c("COMID" = "comid")) %>%
+  mutate(n_removal = 1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))
+# check units on totma, should be days
+#  rasterize
+
+```
+
 3. Removal in Lakes and Ponds
   - Qnorm approach may not be needed.
   - Get residence time for each lake and pond should now be available from NHD Plus (in Years)
