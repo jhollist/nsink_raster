@@ -226,12 +226,16 @@ q_dat <- foreign::read.dbf(here("data/NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0
   mutate(mean_reach_depth = 0.2612 * (q_cms ^ 0.3966))
 tot_dat <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf"))%>%
   select(comid = ComID,totma = TOTMA)
-stream_removal <- niantic_streams %>%
+niantic_stream_sp <- niantic_streams %>%
   left_join(q_dat, by = c("COMID" = "comid")) %>%
   left_join(tot_dat, by = c("COMID" = "comid")) %>%
-  mutate(n_removal = 1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))
+  mutate(n_removal = ((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.))*30) %>%
+  as("Spatial")
+
+niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
+                                            niantic_hydric_removal, 
+                                            field = "n_removal")
 # check units on totma, should be days
-#  rasterize
 
 ```
 
