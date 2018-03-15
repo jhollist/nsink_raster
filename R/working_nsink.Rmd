@@ -244,6 +244,7 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
     - Need to identify the outlet pixel for all lakes and ponds and assigning this value to that
     - points??
     - Rasterize this. 
+  - what about lake/pond not on stream network???
 ```{r}
 
 ```
