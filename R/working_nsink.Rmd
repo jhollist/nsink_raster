@@ -79,9 +79,12 @@ plot(as(niantic_huc, "Spatial"))
 loc <- c(1950005,2295977)
 example_fp <- flowPath(niantic_fdr, loc)
 example_fp_xy <- xyFromCell(niantic_fdr, example_fp)
+example_fp_r <- rasterFromXYZ(data.frame(example_fp_xy, value = 1)) # Not Working!
+example_fp_r <- setValues(example_fp_r, 1) 
 plot(niantic_fdr)
 plot(niantic_huc, add = T)
-lines(example_fp_xy)
+#lines(example_fp_xy)
+plot(example_fp_r, add = T)
 ```
 
 # Step 2: Summarize land, stream, and lake removal 
@@ -245,6 +248,14 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
     - points??
     - Rasterize this. 
   - what about lake/pond not on stream network???
+  - what about multiple outflows???
+  - might need another way.
+  - multi step process
+    - separate from other reduction layers
+    - get total reduction for a lake/pond and set that to a raster
+    - determine how many cells in a flow path are in that lake/pond
+    - assing reduction to flow path cells in lake/pond based on total reduction/num cells in lake/pond
+        - this should assign total pond reduction to that flow path 
 ```{r}
 
 ```
