@@ -11,17 +11,16 @@ editor_options:
   chunk_output_type: console
 ---
 ```{r}
-#devtools::install_github("jimhester/archive")
-library(here)
-library(archive)
-library(httr)
-library(raster)
-library(sp)
-library(rgdal)
-library(tidyverse)
-library(sf)
-library(FedData)
-library(foreign)
+pkgs <- c("here","archive", "httr", "raster", "sp", "rgdal", "tidyverse", "sf",
+          "FedData","foreign")
+for(i in pkgs){
+  if(i == "archive" & !i %in% installed.packages()){
+    devtools::install_github("jimhester/archive")
+  } else if(!i %in% installed.packages()){
+    install.packages(i)
+  }
+}
+x<-lapply(pkgs, library, character.only = TRUE)
 ```
 This is a working script to be used to figure out the raster methodology for
 N-Sink.  It will be messy.
@@ -33,7 +32,7 @@ Eventually front-load data collection, for now do it by task.
 # Step 1: Generate flow path from user specified location
 
 ## Data
-Grab flow direction and 12 Digist HUSCS from NHD Plus
+Grab flow direction and 12 Digist HUCS from NHD Plus
 
 ```{r}
 # Grab data if doesn't exist locally
@@ -114,16 +113,13 @@ Latest thinking on this quagmire (isn't that one of the soil types?)  Finest spa
 So, the plan is to use a weighted removal.  For instance if a map unit has 3 components and 1 is not hydric and makes up 70% of the map unit, thus 30% of the map unit is hydric.  Thus any pixels in that map unit would have 24% removal (80% for hydric * 30% of that map unit being hydric).
 
 ```{r}
-#re-run
-ct600_ssurgo <- get_ssurgo(c("CT600"),"ct600","data/ssurgo/ct600","data/ssurgo/ct600")
+#ct600_ssurgo <- get_ssurgo(c("CT600"),"ct600","data/ssurgo/ct600","data/ssurgo/ct600")
 
 niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo", "data/ssurgo")
 
-
-
 niantic_ssurgo_sf <- st_as_sf(niantic_ssurgo$spatial) %>%
-  st_transform(projection(fdr_ne))
-names(niantic_ssurgo_sf) <- str_to_lower(names(niantic_ssurgo_sf))
+  st_transform(projection(fdr_ne)) 
+names(niantic_ssurgo_sf) <- str_to_lower(names(niantic_ssurgo_sf)) 
 niantic_ssurgo_tbl <- niantic_ssurgo$tabular$component %>%
   mutate(mukey = as(mukey, "character")) %>%
   select(mukey, cokey, hydricrating, comppct.r) %>%
@@ -131,6 +127,7 @@ niantic_ssurgo_tbl <- niantic_ssurgo$tabular$component %>%
   summarize(hydric_pct = sum(comppct.r))
 
 niantic_hydric <- niantic_ssurgo_sf %>%
+  mutate(mukey = as(mukey, "character")) %>%
   full_join(niantic_ssurgo_tbl, by = "mukey") %>%
   filter(hydricrating == "Yes") #%>%
   #filter(hydric_pct > 50)
@@ -244,9 +241,12 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
   - Get residence time for each lake and pond should now be available from NHD Plus (in Years)
   - Get mean depth (in meters)
   - Removal 79.24-33.26*log10(mean depth/residence time)
-    - Need to identify the outlet pixel for all lakes and ponds and assing this value to that
+    - Need to identify the outlet pixel for all lakes and ponds and assigning this value to that
     - points??
     - Rasterize this. 
+```{r}
+
+```
 
 
 ## Output
