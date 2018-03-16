@@ -247,10 +247,12 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
     - Need to identify the outlet pixel for all lakes and ponds and assigning this value to that
     - points??
     - Rasterize this. 
-  - what about lake/pond not on stream network???
+  - what about lake/pond not on stream network???  This needs to be addressed.
   - what about multiple outflows???
-  - might need another way.
-  - multi step process
+    - Actually not a problem.  Flow path will still only go through a single outflow
+    - Lakes with multiple outflows can still have the full lake removal assigned to each outflow.
+  - might need another way.  Maybe not.
+  - multi step process. Likely unnecessary
     - separate from other reduction layers
     - get total reduction for a lake/pond and set that to a raster
     - determine how many cells in a flow path are in that lake/pond
