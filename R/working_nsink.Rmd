@@ -5,6 +5,7 @@ author:
 - Q Kellogg
 date: '2017-11-27'
 output:
+  pdf_document: default
   html_document:
     df_print: paged
 editor_options:
@@ -83,8 +84,8 @@ example_fp_r <- rasterFromXYZ(data.frame(example_fp_xy, value = 1)) # Not Workin
 example_fp_r <- setValues(example_fp_r, 1) 
 plot(niantic_fdr)
 plot(niantic_huc, add = T)
-#lines(example_fp_xy)
-plot(example_fp_r, add = T)
+lines(example_fp_xy)
+#plot(example_fp_r, add = T)
 ```
 
 # Step 2: Summarize land, stream, and lake removal 
@@ -118,8 +119,10 @@ So, the plan is to use a weighted removal.  For instance if a map unit has 3 com
 ```{r}
 #ct600_ssurgo <- get_ssurgo(c("CT600"),"ct600","data/ssurgo/ct600","data/ssurgo/ct600")
 
-niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo", "data/ssurgo")
+# add conditional so doesn't run if already downloaded...
+#niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo", "data/ssurgo")
 
+load(here("niantic_ssurgo.rda"))
 niantic_ssurgo_sf <- st_as_sf(niantic_ssurgo$spatial) %>%
   st_transform(projection(fdr_ne)) 
 names(niantic_ssurgo_sf) <- str_to_lower(names(niantic_ssurgo_sf)) 
@@ -270,7 +273,7 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
 
 - Lakes done separately.  Get flow path, figure out which pixels in flow path are lakes (with comid)  Separate look up table with comid and removal.  Calculate removal for lake/flow path by dividing lake removal by total number of flow path pixels in a lake.
 
-```{r}
+```{r eval=FALSE}
 # Get just lakepond 
 niantic_lakepond <- niantic_waterbodies %>%
   filter(FTYPE == "LakePond")
