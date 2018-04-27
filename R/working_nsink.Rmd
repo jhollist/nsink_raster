@@ -278,55 +278,24 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
 niantic_lakepond <- niantic_waterbodies %>%
   filter(FTYPE == "LakePond")
 
-# Streams to Points
-#niantic_stream_pts <- niantic_streams %>%
-#  filter(FTYPE == "ArtificialPath") %>%
-#  select(comid = COMID) %>%
-#  st_cast("POINT") %>%
-#  mutate(row_num = row.names(.)) 
-
-# Index of overlapping points
-#idx <- niantic_stream_pts %>%
-#  st_intersects(st_cast(niantic_lakepond, "MULTILINESTRING"), prepared = FALSE) %>%
-#  lengths(.) > 0
-
-#niantic_stream_lp_pts <- niantic_stream_pts[idx,]
-
-# Index of points on inside
-#idx_i <- niantic_stream_wb_pts %>%
-#  st_covered_by(niantic_waterbodies, prepared = FALSE) %>%
-#  lengths(.) > 0
-
-# Index of points on edge
-#idx_e <- !idx_i
-
-#niantic_lp_pts <- niantic_stream_lp_pts[idx_e,]
-
-#outflow_id <- niantic_lp_pts %>%
-#  group_by(comid) %>%
-#  summarize(outflow_id = max(row_num))
-
-#niantic_outflow <- outflow_id %>% 
-#  left_join(niantic_stream_lp_pts, by = c(comid, outflow_id))
-  
-#mapview(niantic_stream_wb_pts[!idx_i,]) + niantic_waterbodies
-
-
 # Read in VAA and join to streams
-nhd_vaa <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf")) 
+nhd_vaa <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf")) #joined above somewhere..
 nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusWaterbodyLakeMorphology.dbf"))
 nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf"))
 
-# Need to figure out comid's think some are for flowlines and some for wb.  Not the same!
+niantic_lake_flow_path_removal <- niantic_streams_vaa %>%
+  left_join(nhd_lakemorpho, by = c("WBAREACOMI" = "ComID")) %>%
+  left_join(nhd_lakemorpho_flowline, by = c("COMID" = "ComID")) %>%
+  filter(!is.na(MeanDepth)) %>%
+  filter(WBAreaType == "LakePond") %>% 
+  group_by(WBAREACOMI) %>%
+  mutate(lake_residence_time_yrs = sum(TOTMA*0.002737851)) %>%
+  ungroup() %>%
+  mutate(removal = 79.24 - (33.26 * log10(MeanDUsed/lake_residence_time_yrs))) %>%
+  select(COMID, WBAREACOMI, removal, lake_residence_time_yrs)
+View(niantic_lake_flow_path_removal)
 
-niantic_streams_vaa <- niantic_streams %>%
-  left_join(nhd_vaa, by = c("COMID" = "ComID"))
 
-# Convert lines to points
-#niantic_streams_pts <- st_cast(niantic_streams_vaa, "MULTIPOINT") %>%
-#  st_cast("POINT")
-# Get points that are associated with waterbodies
-#niantic_waterbodies_pts <- niantic_streams_pts[st_intersects(niantic_streams_pts, niantic_waterbodies, sparse = FALSE),]
 
 
 ```
