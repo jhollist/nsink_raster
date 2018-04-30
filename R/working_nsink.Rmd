@@ -187,7 +187,20 @@ ne_waterbodies <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography
   st_transform(st_crs(niantic_huc))
 niantic_waterbodies <- ne_waterbodies %>%
   slice(st_contains(niantic_huc, ne_waterbodies)[[1]])
+
+#Look at relative lengths of different feature types
+ftype_length <- ne_streams %>% 
+  mutate(length = as.numeric(st_length(.))) %>%
+  st_set_geometry(NULL) %>%
+  group_by(FTYPE) %>%
+  summarize(tot_length = sum(length)) %>%
+  ungroup() %>%
+  mutate(perc_length = 100*(tot_length/sum(tot_length)))
+
+
 ```
+
+So, 6 FTYPES.  Canal Ditch, Connector, and Pipeline are less than 0.4% of stream length in the Northeast.  Assumed to be similar to Streams for N Removal.  Coastline removed, and Artifical Path are in lakes and lake removal used for those.
 
 Velocity estimates also in NHDPlus
 
@@ -223,25 +236,78 @@ niantic_hydric_removal <- raster::mask(niantic_hydric_removal,niantic_imp_na)
   - Calculate per pixel removal ((reach removal/length of reach)*raster resolution)
   - rasterize with that value
   
-# DID YOU REMOVE ARTIFICIAL PATHS??
-
 ```{r}
+# Read in external data tables
 q_dat <- foreign::read.dbf(here("data/NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF")) %>% 
-  # FILTER OUT Artivcial Paths
-  select(comid = ComID,q_cfs = Q0001E) %>%
+  select(stream_comid = ComID,q_cfs = Q0001E) %>%
   mutate(q_cms = q_cfs * 0.028316846592) %>%
   mutate(mean_reach_depth = 0.2612 * (q_cms ^ 0.3966))
+
 tot_dat <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf"))%>%
-  select(comid = ComID,totma = TOTMA)
-niantic_stream_sp <- niantic_streams %>%
-  left_join(q_dat, by = c("COMID" = "comid")) %>%
-  left_join(tot_dat, by = c("COMID" = "comid")) %>%
-  mutate(n_removal = ((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.))*30) %>%
+  select(stream_comid = ComID,totma = TOTMA)
+
+nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusWaterbodyLakeMorphology.dbf")) %>%
+  rename_all(tolower) %>%
+  rename(lake_comid = comid)
+
+nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf")) %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid)
+
+# Clean up streams column names
+niantic_streams <- niantic_streams %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid, lake_comid = wbareacomi)
+
+niantic_stream_sf <- niantic_streams %>%
+  left_join(q_dat, by = c("stream_comid" = "stream_comid")) %>%
+  left_join(tot_dat, by = c("stream_comid" = "stream_comid")) %>%
+  left_join(nhd_lakemorpho, by = c("lake_comid" = "lake_comid")) %>%
+  left_join(nhd_lakemorpho_flowline, by = c("stream_comid" = "stream_comid")) %>%
+  mutate(n_removal = case_when(ftype == "StreamRiver" ~ as.numeric(((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.)))*30,
+                               ftype == "CanalDitch" ~ as.numeric(((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.)))*30,
+                               ftype == "Connector" ~ as.numeric(((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.)))*30,
+                               ftype == "Pipeline"  ~ as.numeric(((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.)))*30,
+                               TRUE ~ NA_real_)) 
+
+# Get artifical flow path removal table
+niantic_stream_sf 
+%>%
+  filter(!is.na(meandepth)) %>%
+  group_by(lake_comid) %>%
+  mutate(lake_residence_time_yrs = sum(totma*0.002737851)) %>%
+  ungroup() %>%
+  mutate(n_removal = case_when(ftype == "ArtificalPath" ~ 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs)/as.numeric(st_length(.))*30),
+                               TRUE ~ n_removal))
+  
+  
+  
+  
+  mutate(n_removal = case_when(is.infinite(n_removal) ~ 0,
+                               TRUE ~ n_removal)) %>%
   as("Spatial")
+
+
+
+
+
+niantic_lake_flow_path_removal <- niantic_streams %>%
+  left_join(nhd_vaa, by = c("stream_comid" = "stream_comid")) %>%
+  left_join(nhd_lakemorpho, by = c("wbareacomi" = "lake_comid")) %>%
+  left_join(nhd_lakemorpho_flowline, by = c("stream_comid" = "stream_comid")) %>%
+  filter(!is.na(meandepth)) %>%
+  filter(wbareatype == "LakePond") %>% 
+  group_by(wbareacomi) %>%
+  mutate(lake_residence_time_yrs = sum(totma*0.002737851)) %>%
+  ungroup() %>%
+  mutate(removal = 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs))) %>%
+  select(stream_comid, wbareacomi, removal, lake_residence_time_yrs)
+
 
 niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
                                             niantic_hydric_removal, 
-                                            field = "n_removal")
+                                            field = "n_removal") 
+
 # check units on totma, should be days
 
 ```
@@ -273,44 +339,10 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
 
 - Lakes done separately.  Get flow path, figure out which pixels in flow path are lakes (with comid)  Separate look up table with comid and removal.  Calculate removal for lake/flow path by dividing lake removal by total number of flow path pixels in a lake.
 
-```{r eval=TRUE}
-# Get just lakepond 
-niantic_lakepond <- niantic_waterbodies %>%
-  filter(FTYPE == "LakePond")
-
-# rename stream columns
-niantic_streams <- niantic_streams %>%
-  rename_all(tolower) %>%
-  rename(stream_comid = comid)
-
-# Read in VAA and join to streams
-nhd_vaa <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf")) %>%
-  rename_all(tolower) %>%
-  rename(stream_comid = comid)
-nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusWaterbodyLakeMorphology.dbf")) %>%
-  rename_all(tolower) %>%
-  rename(lake_comid = comid)
-nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf")) %>%
-  rename_all(tolower) %>%
-  rename(stream_comid = comid)
-
-niantic_lake_flow_path_removal <- niantic_streams %>%
-  left_join(nhd_vaa, by = c("stream_comid" = "stream_comid")) %>%
-  left_join(nhd_lakemorpho, by = c("wbareacomi" = "lake_comid")) %>%
-  left_join(nhd_lakemorpho_flowline, by = c("stream_comid" = "stream_comid")) %>%
-  filter(!is.na(meandepth)) %>%
-  filter(wbareatype == "LakePond") %>% 
-  group_by(wbareacomi) %>%
-  mutate(lake_residence_time_yrs = sum(totma*0.002737851)) %>%
-  ungroup() %>%
-  mutate(removal = 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs))) %>%
-  select(stream_comid, wbareacomi, removal, lake_residence_time_yrs)
-View(niantic_lake_flow_path_removal)
+- as of April 30, 2018 calculating lake level reductions the aportioning to flow path and pixel.  Lake level residence time in years is totma summed for lake/365 and mean depth comes from nhd plus.  Calculations moved up to streams since everything on flow lines.
 
 
 
-
-```
 
 
 ## Output
