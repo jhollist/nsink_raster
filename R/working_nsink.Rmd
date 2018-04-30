@@ -269,7 +269,7 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
 - find outflow points
   - Get points
   
-# Need a different approach.  What is here (as of March 19) isn't goint to work
+# Need a different approach.  What is here (as of March 19) isn't going to work
 
 - Lakes done separately.  Get flow path, figure out which pixels in flow path are lakes (with comid)  Separate look up table with comid and removal.  Calculate removal for lake/flow path by dividing lake removal by total number of flow path pixels in a lake.
 
@@ -278,22 +278,33 @@ niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
 niantic_lakepond <- niantic_waterbodies %>%
   filter(FTYPE == "LakePond")
 
+# rename stream columns
+niantic_streams <- niantic_streams %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid)
+
 # Read in VAA and join to streams
-nhd_vaa <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf")) #joined above somewhere..
-nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusWaterbodyLakeMorphology.dbf"))
-nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf"))
+nhd_vaa <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf")) %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid)
+nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusWaterbodyLakeMorphology.dbf")) %>%
+  rename_all(tolower) %>%
+  rename(lake_comid = comid)
+nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf")) %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid)
 
 niantic_lake_flow_path_removal <- niantic_streams %>%
-  left_join(nhd_vaa, by = c("COMID" = "ComID")) %>%
-  left_join(nhd_lakemorpho, by = c("WBAREACOMI" = "ComID")) %>%
-  left_join(nhd_lakemorpho_flowline, by = c("COMID" = "ComID")) %>%
-  filter(!is.na(MeanDepth)) %>%
-  filter(WBAreaType == "LakePond") %>% 
-  group_by(WBAREACOMI) %>%
-  mutate(lake_residence_time_yrs = sum(TOTMA*0.002737851)) %>%
+  left_join(nhd_vaa, by = c("stream_comid" = "stream_comid")) %>%
+  left_join(nhd_lakemorpho, by = c("wbareacomi" = "lake_comid")) %>%
+  left_join(nhd_lakemorpho_flowline, by = c("stream_comid" = "stream_comid")) %>%
+  filter(!is.na(meandepth)) %>%
+  filter(wbareatype == "LakePond") %>% 
+  group_by(wbareacomi) %>%
+  mutate(lake_residence_time_yrs = sum(totma*0.002737851)) %>%
   ungroup() %>%
-  mutate(removal = 79.24 - (33.26 * log10(MeanDUsed/lake_residence_time_yrs))) %>%
-  select(COMID, WBAREACOMI, removal, lake_residence_time_yrs)
+  mutate(removal = 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs))) %>%
+  select(stream_comid, wbareacomi, removal, lake_residence_time_yrs)
 View(niantic_lake_flow_path_removal)
 
 
