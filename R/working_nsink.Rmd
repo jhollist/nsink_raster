@@ -283,7 +283,8 @@ nhd_vaa <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlin
 nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusWaterbodyLakeMorphology.dbf"))
 nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf"))
 
-niantic_lake_flow_path_removal <- niantic_streams_vaa %>%
+niantic_lake_flow_path_removal <- niantic_streams %>%
+  left_join(nhd_vaa, by = c("COMID" = "ComID")) %>%
   left_join(nhd_lakemorpho, by = c("WBAREACOMI" = "ComID")) %>%
   left_join(nhd_lakemorpho_flowline, by = c("COMID" = "ComID")) %>%
   filter(!is.na(MeanDepth)) %>%
