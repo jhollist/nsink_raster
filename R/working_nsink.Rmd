@@ -212,16 +212,20 @@ Vogel and EROM based.  Ask Q.
 ## Combine data into Ze Super Raster
 
 ### Input Datasets 
+0. Create empty raster to dump everything into...
+
+```{r}
+empty_raster <- fasterize::raster(niantic_imp)
+```
+
 1. Removal on land
   - Hydric soils on non-impervious surface - 80% but weighted by percent hydric soil
     - niantic_hydric - rasterize with value == 0.8*pct_hydric
 ```{r}
 #calc per pixel removal value
-niantic_hydric_sp <- niantic_hydric %>%
-  mutate(n_removal = 0.8*(hydric_pct/100)) %>%
-  as("Spatial")
-niantic_hydric_removal <- raster::rasterize(niantic_hydric_sp,niantic_imp, 
-                                            field = "n_removal")
+niantic_hydric <- niantic_hydric %>%
+  mutate(n_removal = 0.8*(hydric_pct/100))
+niantic_hydric_removal <- fasterize::fasterize(niantic_hydric,empty_raster, field = "n_removal")
 niantic_imp_na <- niantic_imp
 niantic_imp_na[niantic_imp_na>0] <- NA 
 niantic_hydric_removal <- raster::mask(niantic_hydric_removal,niantic_imp_na)
@@ -271,8 +275,7 @@ niantic_stream_sf <- niantic_streams %>%
                                TRUE ~ NA_real_)) 
 
 # Get artifical flow path removal table
-niantic_stream_sf 
-%>%
+x <- niantic_stream_sf %>%
   filter(!is.na(meandepth)) %>%
   group_by(lake_comid) %>%
   mutate(lake_residence_time_yrs = sum(totma*0.002737851)) %>%
