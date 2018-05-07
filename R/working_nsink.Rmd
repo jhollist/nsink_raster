@@ -13,7 +13,7 @@ editor_options:
 ---
 ```{r}
 pkgs <- c("here","archive", "httr", "raster", "sp", "rgdal", "tidyverse", "sf",
-          "FedData","foreign")
+          "FedData","foreign", "fasterize")
 for(i in pkgs){
   if(i == "archive" & !i %in% installed.packages()){
     devtools::install_github("jimhester/archive")
@@ -197,7 +197,6 @@ ftype_length <- ne_streams %>%
   ungroup() %>%
   mutate(perc_length = 100*(tot_length/sum(tot_length)))
 
-
 ```
 
 So, 6 FTYPES.  Canal Ditch, Connector, and Pipeline are less than 0.4% of stream length in the Northeast.  Assumed to be similar to Streams for N Removal.  Coastline removed, and Artifical Path are in lakes and lake removal used for those.
@@ -242,74 +241,71 @@ niantic_hydric_removal <- raster::mask(niantic_hydric_removal,niantic_imp_na)
   
 ```{r}
 # Read in external data tables
-q_dat <- foreign::read.dbf(here("data/NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF")) %>% 
+q_dat <- foreign::read.dbf(here("data/NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF")) %>%
   select(stream_comid = ComID,q_cfs = Q0001E) %>%
   mutate(q_cms = q_cfs * 0.028316846592) %>%
-  mutate(mean_reach_depth = 0.2612 * (q_cms ^ 0.3966))
+  mutate(mean_reach_depth = 0.2612 * (q_cms ^ 0.3966)) %>%
+  mutate_if(is.factor, as.character())
 
 tot_dat <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf"))%>%
-  select(stream_comid = ComID,totma = TOTMA)
+  select(stream_comid = ComID,totma = TOTMA) %>%
+  mutate_if(is.factor, as.character())
 
 nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusWaterbodyLakeMorphology.dbf")) %>%
   rename_all(tolower) %>%
-  rename(lake_comid = comid)
+  rename(lake_comid = comid) %>%
+  mutate_if(is.factor, as.character())
 
 nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf")) %>%
   rename_all(tolower) %>%
-  rename(stream_comid = comid)
+  rename(stream_comid = comid) %>%
+  mutate_if(is.factor, as.character())
 
-# Clean up streams column names
-niantic_streams <- niantic_streams %>%
-  rename_all(tolower) %>%
-  rename(stream_comid = comid, lake_comid = wbareacomi)
+# Calc stream removal
 
 niantic_stream_sf <- niantic_streams %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid, lake_comid = wbareacomi) %>%
+  mutate_if(is.factor, as.character()) %>%
   left_join(q_dat, by = c("stream_comid" = "stream_comid")) %>%
   left_join(tot_dat, by = c("stream_comid" = "stream_comid")) %>%
   left_join(nhd_lakemorpho, by = c("lake_comid" = "lake_comid")) %>%
   left_join(nhd_lakemorpho_flowline, by = c("stream_comid" = "stream_comid")) %>%
+  mutate(totma = case_when(totma == -9999 ~ NA_real_,
+                           TRUE ~ totma),
+         meandused = case_when(meandused < 0 ~ NA_real_,
+                                      TRUE ~ meandused)) %>%
   mutate(n_removal = case_when(ftype == "StreamRiver" ~ as.numeric(((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.)))*30,
                                ftype == "CanalDitch" ~ as.numeric(((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.)))*30,
                                ftype == "Connector" ~ as.numeric(((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.)))*30,
                                ftype == "Pipeline"  ~ as.numeric(((1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/st_length(.)))*30,
                                TRUE ~ NA_real_)) 
 
-# Get artifical flow path removal table
-x <- niantic_stream_sf %>%
+# Get artifical flow path removal table NEED TO CHECK REMOVAL CALCS
+lake_removal <- niantic_stream_sf %>%
   filter(!is.na(meandepth)) %>%
   group_by(lake_comid) %>%
   mutate(lake_residence_time_yrs = sum(totma*0.002737851)) %>%
   ungroup() %>%
-  mutate(n_removal = case_when(ftype == "ArtificalPath" ~ 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs)/as.numeric(st_length(.))*30),
-                               TRUE ~ n_removal))
-  
-  
-  
-  
-  mutate(n_removal = case_when(is.infinite(n_removal) ~ 0,
+  mutate(n_removal = case_when(ftype == "ArtificialPath" ~ 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs)/as.numeric(st_length(.))*30),
                                TRUE ~ n_removal)) %>%
-  as("Spatial")
+  select(stream_comid, lake_comid, n_removal)
+
+#Just Data
+st_geometry(lake_removal) <- NULL
+  
+# Add lake removal back into stream flow path
+niantic_stream_sf <- niantic_stream_sf %>%
+  left_join(lake_removal, by = c("stream_comid" = "stream_comid")) %>%
+  mutate(n_removal_combo = case_when(!is.na(n_removal.x) ~ n_removal.x,
+                                     !is.na(n_removal.y) ~ n_removal.y,
+                                     TRUE ~ NA_real_))
 
 
 
-
-
-niantic_lake_flow_path_removal <- niantic_streams %>%
-  left_join(nhd_vaa, by = c("stream_comid" = "stream_comid")) %>%
-  left_join(nhd_lakemorpho, by = c("wbareacomi" = "lake_comid")) %>%
-  left_join(nhd_lakemorpho_flowline, by = c("stream_comid" = "stream_comid")) %>%
-  filter(!is.na(meandepth)) %>%
-  filter(wbareatype == "LakePond") %>% 
-  group_by(wbareacomi) %>%
-  mutate(lake_residence_time_yrs = sum(totma*0.002737851)) %>%
-  ungroup() %>%
-  mutate(removal = 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs))) %>%
-  select(stream_comid, wbareacomi, removal, lake_residence_time_yrs)
-
-
-niantic_stream_removal <- raster::rasterize(niantic_stream_sp,
+niantic_stream_removal <- raster::rasterize(niantic_stream_sf,
                                             niantic_hydric_removal, 
-                                            field = "n_removal") 
+                                            field = "n_removal_combo") 
 
 # check units on totma, should be days
 
