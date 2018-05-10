@@ -137,7 +137,7 @@ niantic_hydric <- niantic_ssurgo_sf %>%
   full_join(niantic_ssurgo_tbl, by = "mukey") %>%
   filter(hydricrating == "Yes") #%>%
   #filter(hydric_pct > 50)
-  
+
 ```
 
 
@@ -210,6 +210,28 @@ Vogel and EROM based.  Ask Q.
 
 ## Combine data into Ze Super Raster
 
+2018-05-09
+Thinking about removal more.  It is NOT necessarily a function of length and can't divide percent removal to get a per pixel removal.  No need to divide by length or pixel size.
+
+Calculate removal per feature and rasterize with that value 
+  - all hydric will be 0.8 * percent hydric
+  - lakes will be total removal for that lake
+  - streams will be total for that reach
+  
+Get vector of removal values, grab last consecutive value, cumprod it.  Example
+
+```{r}
+# removal vector is overlay of flowpath on removal raster
+x<-c(0.8,0.8,0.8,0.02,0.02,0.02,0.02,0.02,0.35,0.35,0.35,0.35,0.35,0.001,0.001,0.35)
+# x_last is the last consectuive instance of that value in the vector
+x_last <- zoo::rollapply(x, width = 2, partial = TRUE, 
+                          function(x) ifelse(x[1]==x[2],0, x[1]))
+x_last <- ifelse(is.na(x_last),x[length(x)],x_last)
+x_last_removal <- 1-x_last
+# Add starting load and cumprod it
+cumprod(c(100,x_last_removal))
+```
+
 ### Input Datasets 
 0. Create empty raster to dump everything into...
 
@@ -220,6 +242,7 @@ empty_raster <- fasterize::raster(niantic_imp)
 1. Removal on land
   - Hydric soils on non-impervious surface - 80% but weighted by percent hydric soil
     - niantic_hydric - rasterize with value == 0.8*pct_hydric
+    -
 ```{r}
 #calc per pixel removal value
 niantic_hydric <- niantic_hydric %>%
