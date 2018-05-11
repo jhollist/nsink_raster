@@ -1,0 +1,406 @@
+---
+title: "Draft raster methodology in R"
+author:
+- Jeff Hollister
+- Q Kellogg
+date: '2017-11-27'
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+```{r}
+pkgs <- c("here","archive", "httr", "raster", "sp", "rgdal", "tidyverse", "sf",
+          "FedData","foreign", "fasterize")
+for(i in pkgs){
+  if(i == "archive" & !i %in% installed.packages()){
+    devtools::install_github("jimhester/archive")
+  } else if(!i %in% installed.packages()){
+    install.packages(i)
+  }
+}
+x<-lapply(pkgs, library, character.only = TRUE)
+```
+This is a working script to be used to figure out the raster methodology for
+N-Sink.  It will be messy.
+
+# Step 0: Get Data
+
+Eventually front-load data collection, for now do it by task.
+
+# Step 1: Generate flow path from user specified location
+
+## Data
+Grab flow direction and 12 Digist HUCS from NHD Plus
+
+```{r}
+# Grab data if doesn't exist locally
+if(!file.exists(here("data/nhdplus_ne_fdr.7z"))){
+  fdr_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_01a_FdrFac_01.7z"
+  httr::GET(fdr_url, httr::write_disk(path = here("data/nhdplus_ne_fdr.7z")),progress())
+  archive_extract(here("data/nhdplus_ne_fdr.7z"), here("data"))
+}
+if(!file.exists(here("data/nhdplus_ne_huc12.7z"))){
+  huc12_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_WBDSnapshot_03.7z"
+  httr::GET(huc12_url, httr::write_disk(here("data/nhdplus_ne_huc12.7z")), httr::progress())
+  archive_extract(here("data/nhdplus_ne_huc12.7z"), here("data"))
+}
+if(!file.exists(here("data/nhdplus_ne_attributes.7z"))){
+  attr_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_NHDPlusAttributes_08.7z"
+  httr::GET(attr_url, httr::write_disk(here("data/nhdplus_ne_attributes.7z")), httr::progress())
+  archive_extract(here("data/nhdplus_ne_attributes.7z"), here("data"))
+}
+
+if(!file.exists(here("data/nhdplus_ne_erom.7z"))){
+  erom_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_EROMExtension_05.7z"
+  httr::GET(erom_url, httr::write_disk(here("data/nhdplus_ne_erom.7z")), httr::progress())
+  archive_extract(here("data/nhdplus_ne_erom.7z"), here("data"))
+}
+```
+
+NHDPlus available via two-digit HUCS, for individual applications need to pare down to HUC 12 (or 10).
+
+```{r}
+fdr_ne <- raster(here("data/NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr/"))
+huc12_ne <- st_read(here("data/NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed.shp")) %>% st_transform(projection(fdr_ne))
+niantic_huc <- huc12_ne %>%
+  filter(HU_12_NAME == "Niantic River") 
+niantic_fdr <- crop(fdr_ne, as(niantic_huc,"Spatial"))
+```
+
+## Calculate the flow path of interest
+
+This can all be done direclty in r with `raster::flowPath()`
+
+```{r}
+plot(as(niantic_huc, "Spatial"))
+#loc <- unlist(locator(1)) can use this for interactive
+loc <- c(1950005,2295977)
+example_fp <- flowPath(niantic_fdr, loc)
+example_fp_xy <- xyFromCell(niantic_fdr, example_fp)
+example_fp_r <- rasterFromXYZ(data.frame(example_fp_xy, value = 1)) # Not Working!
+example_fp_r <- setValues(example_fp_r, 1) 
+plot(niantic_fdr)
+plot(niantic_huc, add = T)
+lines(example_fp_xy)
+#plot(example_fp_r, add = T)
+```
+
+# Step 2: Summarize land, stream, and lake removal 
+
+land removal is a constant made up of pixels that are vegetated Hydric Soils
+Combination of hydric soils from SSURGO and Vegetated land cover from NLCD
+Figuring this layer(s) out will be the most work.
+
+## Data
+
+### soils:  https://github.com/ncss-tech and soilDB
+Soils are complicated...
+
+- https://gdg.sc.egov.usda.gov/GDGHome_DirectDownLoad.aspx
+- Can download by state - gives gridded mukey(?)
+  - https://nrcs.app.box.com/v/soils/folder/23623124719
+  - This is on box.com.  Need to figure way to download from R, but it's big per state.  
+- Get hdyric data (yes no) from https://www.nrcs.usda.gov/Internet/FSE_DOCUMENTS/nrcseprd1316619.html
+  - currently have for all NE in "data/NRCS State Hydric Soils List.html"
+  - need to scrape this html to get table out into a data frame.
+- Need to output row and column from gSSURGO that have a match in hydric data frame.  
+- Create new raster from those matching row and columns as Hydric.  all other r,c are not hydric.
+- Have an example gSSURGO for CT in the data folder
+- the zip is in there too.  It was a bit weird and not directly unzippable. The source data and how to extract this needs to be figured out for reproducibilities sake!
+    - FedData to the rescue!  (maybe)
+    
+Latest thinking on this quagmire (isn't that one of the soil types?)  Finest spatial resolution available from SSURGO is the Map Unit, yet, information in associated tables is at the component.  Components are not mapped, they are more like existential pieces of map units.  So, no way to get a binary hydric/not hydric at the 30m pixel.  Instead, components have a percentage associated with them.  So for istance, a single map unit could have 5 components in it.  We don't know where in the map unit those components exist, but we do know the proportion of each within the map unit.  I am assuming that the sum of the proportion of each component should equal 1 for each map unit.  Haven't checking this with data yet.
+
+So, the plan is to use a weighted removal.  For instance if a map unit has 3 components and 1 is not hydric and makes up 70% of the map unit, thus 30% of the map unit is hydric.  Thus any pixels in that map unit would have 24% removal (80% for hydric * 30% of that map unit being hydric).
+
+```{r}
+#ct600_ssurgo <- get_ssurgo(c("CT600"),"ct600","data/ssurgo/ct600","data/ssurgo/ct600")
+
+# add conditional so doesn't run if already downloaded...
+#niantic_ssurgo <- get_ssurgo(as(niantic_huc, "Spatial"), "niantic", "data/ssurgo", "data/ssurgo")
+
+load(here("niantic_ssurgo.rda"))
+niantic_ssurgo_sf <- st_as_sf(niantic_ssurgo$spatial) %>%
+  st_transform(projection(fdr_ne)) 
+names(niantic_ssurgo_sf) <- str_to_lower(names(niantic_ssurgo_sf)) 
+niantic_ssurgo_tbl <- niantic_ssurgo$tabular$component %>%
+  mutate(mukey = as(mukey, "character")) %>%
+  select(mukey, cokey, hydricrating, comppct.r) %>%
+  group_by(mukey, hydricrating) %>%
+  summarize(hydric_pct = sum(comppct.r))
+
+niantic_hydric <- niantic_ssurgo_sf %>%
+  mutate(mukey = as(mukey, "character")) %>%
+  full_join(niantic_ssurgo_tbl, by = "mukey") %>%
+  filter(hydricrating == "Yes") #%>%
+  #filter(hydric_pct > 50)
+
+```
+
+
+### NLCD:  https://www.sciencebase.gov/catalog/item/4f70a43ce4b058caae3f8db3 (and zips on S3)
+
+Swich this to FedData as it wraps science base locales.
+
+```{r}
+url <- "https://s3-us-west-2.amazonaws.com/prd-tnm/StagedProducts/NLCD/data/2011/landcover/3x3/NLCD2011_LC_N39W072.zip"
+
+# FedData better option
+if(!file.exists(here("data/niantic_NLCD_2011_landcover.tif"))){
+  niantic_nlcd <- get_nlcd(as(niantic_huc,"Spatial"), label = "niantic", extraction.dir = "data")
+}
+niantic_nlcd <- raster(here("data/niantic_NLCD_2011_landcover.tif"))
+```
+
+### Percent Impervious
+```{r}
+# FedData better option
+if(!file.exists(here("data/niantic_NLCD_2011_impervious.tif"))){
+  niantic_imp <- get_nlcd(as(niantic_huc,"Spatial"), dataset = "impervious", label = "niantic", extraction.dir = "data")
+}
+niantic_imp <- raster(here("data/niantic_NLCD_2011_impervious.tif"))
+```
+### Waterbodies and Streams: NHDPlus
+
+Grab waterbody snapshot for NE from NHD Plus
+
+```{r}
+if(!file.exists(here("data/nhdplus_ne_snapshot.7z"))){
+  fdr_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_NHDSnapshot_04.7z"
+  httr::GET(fdr_url, httr::write_disk(path = here("data/nhdplus_ne_snapshot.7z")),progress())
+  archive_extract(here("data/nhdplus_ne_snapshot.7z"), here("data"))
+}
+```
+
+Waterbodies are in NHDWaterbodies and flowlines are in NHDFlowlines
+
+```{r}
+ne_streams <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline.shp")) %>%
+  st_transform(st_crs(niantic_huc)) %>%
+  st_zm
+niantic_streams <- ne_streams %>%
+  slice(st_contains(niantic_huc, ne_streams)[[1]])
+ne_waterbodies <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDWaterbody.shp")) %>%
+  st_transform(st_crs(niantic_huc))
+niantic_waterbodies <- ne_waterbodies %>%
+  slice(st_contains(niantic_huc, ne_waterbodies)[[1]])
+
+#Look at relative lengths of different feature types
+ftype_length <- ne_streams %>% 
+  mutate(length = as.numeric(st_length(.))) %>%
+  st_set_geometry(NULL) %>%
+  group_by(FTYPE) %>%
+  summarize(tot_length = sum(length)) %>%
+  ungroup() %>%
+  mutate(perc_length = 100*(tot_length/sum(tot_length)))
+
+```
+
+So, 6 FTYPES.  Canal Ditch, Connector, and Pipeline are less than 0.4% of stream length in the Northeast.  Assumed to be similar to Streams for N Removal.  Coastline removed, and Artifical Path are in lakes and lake removal used for those.
+
+Velocity estimates also in NHDPlus
+
+Vogel and EROM based.  Ask Q.
+
+\EROMExtension\EROM_MA0001 and EROM_mm0001 (tables) for the EROM ones and
+\VogelExtension\VogelFlow (table) which has Vogel Flow and Jobson Velocity.
+
+## Combine data into Ze Super Raster
+
+2018-05-09
+Thinking about removal more.  It is NOT necessarily a function of length and can't divide percent removal to get a per pixel removal.  No need to divide by length or pixel size.
+
+Calculate removal per feature and rasterize with that value 
+  - all hydric will be 0.8 * percent hydric
+  - lakes will be total removal for that lake
+  - streams will be total for that reach
+  
+Get vector of removal values, grab last consecutive value, cumprod it.  Example
+
+```{r}
+# removal vector is overlay of flowpath on removal raster
+x<-c(0.8,0.8,0.8,0.02,0.02,0.02,0.02,0.02,0.35,0.35,0.35,0.35,0.35,0.001,0.001,0.35)
+# x_last is the last consectuive instance of that value in the vector
+x_last <- zoo::rollapply(x, width = 2, partial = TRUE, 
+                          function(x) ifelse(x[1]==x[2],0, x[1]))
+x_last <- ifelse(is.na(x_last),x[length(x)],x_last)
+x_last_removal <- 1-x_last
+# Add starting load and cumprod it
+cumprod(c(100,x_last_removal))
+```
+
+Need to query a raster stack with layer of removal, polygon id, and layer type.  Will facilitate 
+- output of removal per type (eg hydric, lake, stream)
+- checking to make sure that consecutive unique features that have same removal don't get lost.  Use feature ID on sliding window, not removal.  
+
+### Input Datasets 
+0. Create empty raster to dump everything into...
+
+```{r}
+empty_raster <- fasterize::raster(niantic_imp)
+```
+
+1. Removal on land
+  - Hydric soils on non-impervious surface - 80% but weighted by percent hydric soil
+    - niantic_hydric - rasterize with value == 0.8*pct_hydric
+    -
+```{r}
+#calc per pixel removal value
+niantic_hydric <- niantic_hydric %>%
+  mutate(n_removal = 0.8*(hydric_pct/100))
+niantic_hydric_removal <- fasterize::fasterize(niantic_hydric,empty_raster, field = "n_removal")
+niantic_imp_na <- niantic_imp
+niantic_imp_na[niantic_imp_na>0] <- NA 
+niantic_hydric_removal <- raster::mask(niantic_hydric_removal,niantic_imp_na)
+```
+2. Removal in Streams
+  - Mean reach depth - 0.2612 * Q ^ 0.3966
+    - From Kellog et al (2010) and references therein
+    - Q in cubic meters per second (cfs*0.028316846592)
+  - Time of travel in days
+    - From TOTMA in NHDPlus (\NHDPlusAttributes\PlusFlowlineVAA)
+  - Calculate removal per reach - 1 - exp(-0.0513*(mean depth^-1.319)*TOTMA)
+  - Calculate per pixel removal ((reach removal/length of reach)*raster resolution)
+  - rasterize with that value
+  
+```{r}
+# Read in external data tables
+q_dat <- read.dbf(here("data/NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF")) %>%
+  select(stream_comid = ComID,q_cfs = Q0001E) %>%
+  mutate(q_cms = q_cfs * 0.028316846592) %>%
+  mutate(mean_reach_depth = 0.2612 * (q_cms ^ 0.3966)) %>%
+  mutate_if(is.factor, as.character())
+
+tot_dat <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf"))%>%
+  select(stream_comid = ComID,totma = TOTMA) %>%
+  mutate_if(is.factor, as.character())
+
+# Calc stream removal
+
+niantic_stream_sf <- niantic_streams %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid, lake_comid = wbareacomi) %>%
+  mutate_if(is.factor, as.character()) %>%
+  left_join(q_dat, by = c("stream_comid" = "stream_comid")) %>%
+  left_join(tot_dat, by = c("stream_comid" = "stream_comid")) %>%
+  left_join(nhd_lakemorpho, by = c("lake_comid" = "lake_comid")) %>%
+  left_join(nhd_lakemorpho_flowline, by = c("stream_comid" = "stream_comid")) %>%
+  mutate(totma = case_when(totma == -9999 ~ NA_real_,
+                           TRUE ~ totma),
+         meandused = case_when(meandused < 0 ~ NA_real_,
+                                      TRUE ~ meandused)) %>%
+  mutate(n_removal = case_when(ftype == "StreamRiver" ~ 1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma),
+                               ftype == "CanalDitch" ~ 1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma),
+                               ftype == "Connector" ~ 1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma),
+                               ftype == "Pipeline"  ~ 1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma),
+                               TRUE ~ NA_real_)) 
+niantic_stream_removal <- raster::rasterize(niantic_stream_sf,
+                                            niantic_hydric_removal, 
+                                            field = "n_removal_combo") 
+```
+
+# Removal for lakes
+
+```{r}
+
+nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusWaterbodyLakeMorphology.dbf")) %>%
+  rename_all(tolower) %>%
+  rename(lake_comid = comid) %>%
+  mutate_if(is.factor, as.character())
+
+nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf")) %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid) %>%
+  mutate_if(is.factor, as.character())
+
+
+# Get artifical flow path removal table NEED TO CHECK REMOVAL CALCS
+lake_removal <- niantic_stream_sf %>%
+  filter(!is.na(meandepth)) %>%
+  group_by(lake_comid) %>%
+  mutate(lake_residence_time_yrs = sum(totma*0.002737851)) %>%
+  ungroup() %>%
+  mutate(n_removal = case_when(ftype == "ArtificialPath" ~ 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs)/as.numeric(st_length(.))*30),
+                               TRUE ~ n_removal)) %>%
+  select(stream_comid, lake_comid, n_removal)
+
+#Just Data
+st_geometry(lake_removal) <- NULL
+  
+# Add lake removal back into stream flow path
+niantic_stream_sf <- niantic_stream_sf %>%
+  left_join(lake_removal, by = c("stream_comid" = "stream_comid")) %>%
+  mutate(n_removal_combo = case_when(!is.na(n_removal.x) ~ n_removal.x,
+                                     !is.na(n_removal.y) ~ n_removal.y,
+                                     TRUE ~ NA_real_))
+
+
+
+niantic_stream_removal <- 
+
+# check units on totma, should be days
+
+```
+
+3. Removal in Lakes and Ponds
+  - Qnorm approach may not be needed.
+  - Get residence time for each lake and pond should now be available from NHD Plus (in Years)
+  - Get mean depth (in meters)
+  - Removal 79.24-33.26*log10(mean depth/residence time)
+    - Need to identify the outlet pixel for all lakes and ponds and assigning this value to that
+    - points??
+    - Rasterize this. 
+  - what about lake/pond not on stream network???  This needs to be addressed.
+  - what about multiple outflows???
+    - Actually not a problem.  Flow path will still only go through a single outflow
+    - Lakes with multiple outflows can still have the full lake removal assigned to each outflow.
+  - might need another way.  Maybe not.
+  - multi step process. Likely unnecessary
+    - separate from other reduction layers
+    - get total reduction for a lake/pond and set that to a raster
+    - determine how many cells in a flow path are in that lake/pond
+    - assing reduction to flow path cells in lake/pond based on total reduction/num cells in lake/pond
+        - this should assign total pond reduction to that flow path 
+- Do headwater lakes and ponds always have an artifical flow path.
+- find outflow points
+  - Get points
+  
+# Need a different approach.  What is here (as of March 19) isn't going to work
+
+- Lakes done separately.  Get flow path, figure out which pixels in flow path are lakes (with comid)  Separate look up table with comid and removal.  Calculate removal for lake/flow path by dividing lake removal by total number of flow path pixels in a lake.
+
+- as of April 30, 2018 calculating lake level reductions the aportioning to flow path and pixel.  Lake level residence time in years is totma summed for lake/365 and mean depth comes from nhd plus.  Calculations moved up to streams since everything on flow lines.
+
+
+
+
+
+## Output
+
+What does the output for this look like? Table? Flow path with removal values?  Something else?
+
+Bare minimum is table of removal.  Per segment ideally.
+
+Example output #1 - landcover summary table - Along a 100 m buffer
+
+| Landcover Class | Total Area | 
+|-----------------|------------|
+| Developed       | XX         |
+| Forested        | XX         |
+| Wetland         | XX         |
+| Other           | XX         |
+
+Example output #2 - Nitrogen removal per segment (drop to integer values)
+
+| Segement Type | Length | Percent Removal | N in | N out |
+|---------------|--------|-----------------|------|-------|
+| Non-hydric    | 8156   | 0               | 100  | 100   |
+| Hydric        | 546    | 80              | 100  | 20    |
+| Stream        | XX     | 16              | 20   | 16.8  |
+| Lake/Pond     | XX     | 23              | 16.8 | 12.9  |
+| Stream        | XX     | 1               | 12.9 | 11.6  |
+
+
