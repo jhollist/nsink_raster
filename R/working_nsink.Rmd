@@ -135,11 +135,14 @@ niantic_hydric <- niantic_ssurgo_sf %>%
   mutate(n_removal = 0.8*(hydric_pct/100))
 niantic_hydric_removal <- fasterize::fasterize(niantic_hydric, 
                                                empty_raster,
-                                               "n_removal")
+                                               "n_removal",
+                                               background = 0,
+                                               fun = "max")
 
 # Pull in impervious to mask out hydric
 niantic_imp_na <- niantic_imp
-niantic_imp_na[niantic_imp_na>0] <- NA 
+niantic_imp_na[niantic_imp_na > 0] <- NA
+niantic_imp_na[!is.na(niantic_imp_na)] <- 1
 niantic_hydric_removal <- raster::mask(niantic_hydric_removal,niantic_imp_na)
 ```
 
@@ -167,7 +170,8 @@ niantic_stream_removal <- niantic_streams %>%
                            TRUE ~ totma)) %>%
   mutate(n_removal = 1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma)) %>%
   raster::rasterize(empty_raster, 
-                    field = "n_removal") 
+                    field = "n_removal",
+                    fun = "max") 
 ```
 
 # Lake removal
@@ -201,12 +205,28 @@ niantic_lake_removal <- niantic_waterbodies %>%
   left_join(niantic_res_time) %>%
   mutate(meandused = case_when(meandused < 0 ~ NA_real_,
                                TRUE ~ meandused)) %>%
-  mutate(n_removal = 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs)))
+  mutate(n_removal = 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs))) %>%
   fasterize::fasterize(empty_raster,
-                       n_removal)
+                       "n_removal",
+                       fun = "max") 
+```
 
 # Getting a couple of NA lakes.  Need to figure out why and what to do about it...
+# Look at Q's estimates and lake and catchement area.
 
+# Gets Drainage Area
+cumulative <- read.dbf(here("/data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/CumulativeArea.dbf")) %>%
+  mutate_if(is.factor, as.character()) %>%
+  rename_all(tolower) %>%
+  rename(stream_comid = comid)
+niantic_streams %>%
+  left_join(cumulative) %>%
+  View()
+
+# Merge rasters (not yet working)
+
+```{r}
+niantic_n_removal <- raster::merge(niantic_lake_removal, niantic_stream_removal, niantic_hydric_removal)
 ```
 
 
