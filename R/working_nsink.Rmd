@@ -35,6 +35,11 @@ Note: Need to write function to grab for specified huc
 
 ```{r}
 # Grab data if doesn't exist locally
+if(!file.exists(here("data/nhdplus_ne_fdrnull.7z"))){
+  fdr_null_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_01a_FdrNull_01.7z"
+  httr::GET(fdr_null_url,httr::write_disk(path = here("data/nhdplus_ne_fdrnull.7z")),progress())
+  archive_extract(here("data/nhdplus_ne_fdrnull.7z"), here("data/"))
+}
 if(!file.exists(here("data/nhdplus_ne_fdr.7z"))){
   fdr_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_01a_FdrFac_01.7z"
   httr::GET(fdr_url, httr::write_disk(path = here("data/nhdplus_ne_fdr.7z")),progress())
@@ -68,8 +73,10 @@ huc12_ne <- st_read(here("data/NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwaters
 niantic_huc <- huc12_ne %>%
   filter(HU_12_NAME == "Niantic River") %>%
   rename_all(tolower)
-
 niantic_fdr <- crop(fdr_ne, as(niantic_huc,"Spatial"))
+
+ne_fdr_null <- raster(here("data/NHDPlusNE/NHDPlus01/NHDPlusFdrNull01a/fdrnull/"))
+niantic_fdr_null <- crop(fdr_ne, as(niantic_huc,"Spatial"))
 
 ne_streams <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline.shp")) %>%
   st_transform(st_crs(niantic_huc)) %>%
@@ -132,7 +139,9 @@ niantic_hydric <- niantic_ssurgo_sf %>%
   mutate(mukey = as(mukey, "character")) %>%
   full_join(niantic_ssurgo_tbl, by = "mukey") %>%
   filter(hydricrating == "Yes") %>%
-  mutate(n_removal = 0.8*(hydric_pct/100))
+  mutate(n_removal = 0.8*(hydric_pct/100)) %>%
+  mutate(n_removal = case_when(n_removal == 0 ~ NA_real_,
+                               TRUE ~ n_removal))
 niantic_hydric_removal <- fasterize::fasterize(niantic_hydric, 
                                                empty_raster,
                                                "n_removal",
@@ -168,7 +177,7 @@ niantic_stream_removal <- niantic_streams %>%
   left_join(tot_dat, by = c("stream_comid" = "stream_comid")) %>%
   mutate(totma = case_when(totma == -9999 ~ NA_real_,
                            TRUE ~ totma)) %>%
-  mutate(n_removal = 1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma)) %>%
+  mutate(n_removal = (1 - exp(-0.0513 * (mean_reach_depth^-1.319) * totma))/100) %>%
   raster::rasterize(empty_raster, 
                     field = "n_removal",
                     fun = "max") 
@@ -205,7 +214,9 @@ niantic_lake_removal <- niantic_waterbodies %>%
   left_join(niantic_res_time) %>%
   mutate(meandused = case_when(meandused < 0 ~ NA_real_,
                                TRUE ~ meandused)) %>%
-  mutate(n_removal = 79.24 - (33.26 * log10(meandused/lake_residence_time_yrs))) %>%
+  mutate(n_removal = (79.24 - (33.26 * log10(meandused/lake_residence_time_yrs)))/100) %>%
+  mutate(n_removal = case_when(n_removal < 0 ~ 0,
+                               TRUE ~ n_removal)) %>%
   fasterize::fasterize(empty_raster,
                        "n_removal",
                        fun = "max") 
@@ -223,12 +234,32 @@ niantic_streams %>%
   left_join(cumulative) %>%
   View()
 
-# Merge rasters (not yet working)
+# Merge rasters
 
 ```{r}
-niantic_n_removal <- raster::merge(niantic_lake_removal, niantic_stream_removal, niantic_hydric_removal)
+#Need to burn in streams into hydric as hydric 30m rasterization erases most 
+#streams
+stream_val <- getValues(niantic_stream_removal)
+stream_val[stream_val>=0] <- 0
+stream_val[is.na(stream_val)] <- 1
+hydric_val <- getValues(niantic_hydric_removal)
+hydric_val <- hydric_val * stream_val
+niantic_hydric_removal <- setValues(niantic_hydric_removal, hydric_val)
+
+
+niantic_n_removal <- raster::merge(niantic_lake_removal, 
+                                    niantic_stream_removal, 
+                                    niantic_hydric_removal) 
+niantic_n_removal <- mask(niantic_n_removal, niantic_huc)
 ```
 
+```{r}
+# Simple plot!
+#brks <- c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8)
+#color <- rev(RColorBrewer::brewer.pal(9,"RdYlBu"))
+plot(niantic_n_removal)
+plot(niantic_streams$geometry, add = T, col = "slateblue", lwd = 2)
+```
 
 
 ## How to calc flow path stuff
@@ -238,16 +269,25 @@ niantic_n_removal <- raster::merge(niantic_lake_removal, niantic_stream_removal,
 This can all be done direclty in r with `raster::flowPath()`
 
 ```{r}
-plot(as(niantic_huc, "Spatial"))
-#loc <- unlist(locator(1)) can use this for interactive
-loc <- c(1950005,2295977)
-example_fp <- flowPath(niantic_fdr, loc)
-example_fp_xy <- xyFromCell(niantic_fdr, example_fp)
-example_fp_r <- rasterFromXYZ(data.frame(example_fp_xy, value = 1)) # Not Working!
-example_fp_r <- setValues(example_fp_r, 1) 
-plot(niantic_fdr)
-plot(niantic_huc, add = T)
-lines(example_fp_xy)
+plot(niantic_huc$geometry)
+plot(niantic_streams$geometry, add = T)
+loc <- unlist(locator(1)) #can use this for interactive
+#loc <- c(1950005,2295977)
+example_fp_niantic <- flowPath(niantic_fdr, loc)
+example_fp_xy <- xyFromCell(empty_raster, example_fp_niantic)
+fp_n <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams)) %>%
+  st_snap(niantic_streams, 30) #ensures that if lines are 30m or less apart they will cross
+stream_fp<-niantic_streams %>%
+  slice(st_intersects(fp_n,niantic_streams)[[1]])
+
+fp_n_b <- st_sf(st_buffer(fp_n, 15)) %>% 
+  fasterize::fasterize(raster = empty_raster, field = NULL)
+#mapview(fp_n_b) + niantic_streams
+
+
+plot(niantic_n_removal)
+plot(fp, add = T)
+plot(niantic_streams, add = T)
 #plot(example_fp_r, add = T)
 ```
 
