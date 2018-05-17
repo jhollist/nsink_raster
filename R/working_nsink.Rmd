@@ -35,11 +35,7 @@ Note: Need to write function to grab for specified huc
 
 ```{r}
 # Grab data if doesn't exist locally
-if(!file.exists(here("data/nhdplus_ne_fdrnull.7z"))){
-  fdr_null_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_01a_FdrNull_01.7z"
-  httr::GET(fdr_null_url,httr::write_disk(path = here("data/nhdplus_ne_fdrnull.7z")),progress())
-  archive_extract(here("data/nhdplus_ne_fdrnull.7z"), here("data/"))
-}
+
 if(!file.exists(here("data/nhdplus_ne_fdr.7z"))){
   fdr_url <- "http://www.horizon-systems.com/NHDPlusData/NHDPlusV21/Data/NHDPlusNE/NHDPlusV21_NE_01_01a_FdrFac_01.7z"
   httr::GET(fdr_url, httr::write_disk(path = here("data/nhdplus_ne_fdr.7z")),progress())
@@ -67,16 +63,18 @@ if(!file.exists(here("data/nhdplus_ne_snapshot.7z"))){
   httr::GET(fdr_url, httr::write_disk(path = here("data/nhdplus_ne_snapshot.7z")),progress())
   archive_extract(here("data/nhdplus_ne_snapshot.7z"), here("data"))
 }
-
 fdr_ne <- raster(here("data/NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr/"))
 huc12_ne <- st_read(here("data/NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed.shp")) %>% st_transform(projection(fdr_ne))
+
 niantic_huc <- huc12_ne %>%
   filter(HU_12_NAME == "Niantic River") %>%
   rename_all(tolower)
-niantic_fdr <- crop(fdr_ne, as(niantic_huc,"Spatial"))
 
-ne_fdr_null <- raster(here("data/NHDPlusNE/NHDPlus01/NHDPlusFdrNull01a/fdrnull/"))
-niantic_fdr_null <- crop(fdr_ne, as(niantic_huc,"Spatial"))
+## Create raster to set extent, projection, etc. for all conversions
+empty_raster <- fasterize::raster(niantic_huc, resolution = 30)
+
+niantic_fdr <- crop(fdr_ne, niantic_huc) %>%
+  projectRaster(empty_raster,method = "ngb") 
 
 ne_streams <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline.shp")) %>%
   st_transform(st_crs(niantic_huc)) %>%
@@ -85,7 +83,8 @@ ne_streams <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHD
   rename(stream_comid = comid,
          lake_comid = wbareacomi)
 niantic_streams <- ne_streams %>%
-  slice(st_contains(niantic_huc, ne_streams)[[1]])
+  slice(st_contains(niantic_huc, ne_streams)[[1]]) %>%
+  st_crop(st_bbox(niantic_huc))
 ne_waterbodies <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDWaterbody.shp")) %>%
   st_transform(st_crs(niantic_huc)) %>%
   rename_all(tolower) %>%
@@ -95,11 +94,7 @@ niantic_waterbodies <- ne_waterbodies %>%
   slice(st_contains(niantic_huc, ne_waterbodies)[[1]])
 ```
 
-## Create raster to set extent, projection, etc. for all conversions
 
-```{r}
-empty_raster <- fasterize::raster(niantic_huc, resolution = 30)
-```
 
 ## NLCD Percent Impervious
 ```{r}
@@ -275,34 +270,31 @@ Issues with flowpath not following the streams exactly.
 
 Ideas:
 1. Calc flow path
-2. Get all intersecting stream flow lines.
-3. Find most downstream and upstream flow line and grab all flowlines in between
-4. Get portion of flow path above stream flowlines
-5. Get portion of flow path below strea flwolines (it happens, happens a lot)
-6. Combine together in combo flowpath
-7. Convert to raster.
-
 ```{r}
-plot(niantic_huc$geometry)
-plot(niantic_streams$geometry, add = T)
-loc <- unlist(locator(1)) #can use this for interactive
-#loc <- c(1950005,2295977)
+#plot(niantic_huc$geometry)
+#plot(niantic_streams$geometry, add = T)
+#loc <- unlist(locator(1)) #can use this for interactive
+loc <- c(1950005,2295977)
 example_fp_niantic <- flowPath(niantic_fdr, loc)
 example_fp_xy <- xyFromCell(empty_raster, example_fp_niantic)
 fp_n <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams))
-stream_fp<-niantic_streams %>%
-  slice(st_intersects(fp_n,niantic_streams)[[1]])
-
-fp_n_b <- st_sf(st_buffer(fp_n, 15)) %>% 
-  fasterize::fasterize(raster = empty_raster, field = NULL)
-#mapview(fp_n_b) + niantic_streams
-
-
-plot(niantic_n_removal)
-plot(fp, add = T)
-plot(niantic_streams, add = T)
-#plot(example_fp_r, add = T)
 ```
+
+2. Get all intersecting stream flow lines and find most upstream flow line and grab downstream flowlines.
+
+```{r}
+f_s_inter_upstream <- niantic_streams %>%
+  slice(st_intersects(fp_n,niantic_streams)[[1]]) %>%
+  st_crop(st_bbox(fp_n)) # %>%
+  filter(hydroseq == max(hydroseq))
+```
+
+
+5. Get portion of flow path below stream flwolines (it happens, happens a lot)
+6. Combine together in combo flowpath
+7. Convert to raster.
+
+
 
 
 2018-05-09
