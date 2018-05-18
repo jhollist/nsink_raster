@@ -73,7 +73,7 @@ niantic_huc <- huc12_ne %>%
 ## Create raster to set extent, projection, etc. for all conversions
 empty_raster <- fasterize::raster(niantic_huc, resolution = 30)
 
-niantic_fdr <- crop(fdr_ne, niantic_huc) %>%
+niantic_fdr <- crop(fdr_ne, as(niantic_huc, "Spatial")) %>%
   projectRaster(empty_raster,method = "ngb") 
 
 ne_streams <- st_read(here("data/NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline.shp")) %>%
@@ -274,10 +274,16 @@ Ideas:
 #plot(niantic_huc$geometry)
 #plot(niantic_streams$geometry, add = T)
 #loc <- unlist(locator(1)) #can use this for interactive
-loc <- c(1950005,2295977)
+loc <- c(1948121,2295822) 
 example_fp_niantic <- flowPath(niantic_fdr, loc)
-example_fp_xy <- xyFromCell(empty_raster, example_fp_niantic)
-fp_n <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams))
+fp_n_r_v <- values(empty_raster)
+fp_n_r_v[example_fp_niantic]  <- 1
+fp_n_r <- setValues(empty_raster, fp_n_r_v)
+
+
+
+#xample_fp_xy <- xyFromCell(empty_raster, example_fp_niantic)
+#fp_n <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams))
 ```
 
 2. Get all intersecting stream flow lines and find most upstream flow line and grab downstream flowlines.
