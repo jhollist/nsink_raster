@@ -280,10 +280,13 @@ fp_n_r_v <- values(empty_raster)
 fp_n_r_v[example_fp_niantic]  <- 1
 fp_n_r <- setValues(empty_raster, fp_n_r_v)
 
+x <- raster::extract(fp_n_r, niantic_streams)
 
 
-#xample_fp_xy <- xyFromCell(empty_raster, example_fp_niantic)
-#fp_n <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams))
+example_fp_xy <- xyFromCell(empty_raster, example_fp_niantic)
+fp_n_sfc <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams))
+fp_n_sf <- st_sf(geometry = fp_n_sfc)
+x <- st_difference(fp_n_sf, niantic_streams)                 
 ```
 
 2. Get all intersecting stream flow lines and find most upstream flow line and grab downstream flowlines.
