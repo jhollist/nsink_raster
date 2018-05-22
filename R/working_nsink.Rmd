@@ -285,7 +285,7 @@ x <- raster::extract(fp_n_r, niantic_streams)
 
 example_fp_xy <- xyFromCell(empty_raster, example_fp_niantic)
 fp_n_sfc <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams))
-fp_n_sf <- st_sf(geometry = fp_n_sfc)
+fp_n_sf <- st_sf(id = "fp", geometry = fp_n_sfc)
 x <- st_difference(fp_n_sf, niantic_streams)                 
 ```
 
