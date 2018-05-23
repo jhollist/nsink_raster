@@ -16,7 +16,7 @@ editor_options:
 
 ```{r}
 pkgs <- c("here","archive", "httr", "raster", "sp", "rgdal", "tidyverse", "sf",
-          "FedData","foreign", "fasterize", "mapview", "quickmapr")
+          "FedData","foreign", "fasterize", "mapview", "quickmapr", "lwgeom")
 for(i in pkgs){
   if(i == "archive" & !i %in% installed.packages()){
     devtools::install_github("jimhester/archive")
@@ -276,31 +276,56 @@ Ideas:
 #loc <- unlist(locator(1)) #can use this for interactive
 loc <- c(1948121,2295822) 
 example_fp_niantic <- flowPath(niantic_fdr, loc)
-fp_n_r_v <- values(empty_raster)
-fp_n_r_v[example_fp_niantic]  <- 1
-fp_n_r <- setValues(empty_raster, fp_n_r_v)
-
-x <- raster::extract(fp_n_r, niantic_streams)
-
-
 example_fp_xy <- xyFromCell(empty_raster, example_fp_niantic)
-fp_n_sfc <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams))
-fp_n_sf <- st_sf(id = "fp", geometry = fp_n_sfc)
-x <- st_difference(fp_n_sf, niantic_streams)                 
+fp_n_sf <- st_sfc(st_linestring(example_fp_xy), crs = st_crs(niantic_streams)) %>%
+  st_sf
 ```
 
-2. Get all intersecting stream flow lines and find most upstream flow line and grab downstream flowlines.
+2. Get land portion of flow path
 
 ```{r}
-f_s_inter_upstream <- niantic_streams %>%
-  slice(st_intersects(fp_n,niantic_streams)[[1]]) %>%
-  st_crop(st_bbox(fp_n)) # %>%
-  filter(hydroseq == max(hydroseq))
+# https://github.com/r-spatial/sf/issues/749
+# https://gis.stackexchange.com/questions/283131/r-reinsertion-of-intersection-points-into-initial-dataset-after-sfst-interse/283269#283269
+
+get_path_ends <- function(fp, streams){
+  # remove linear intersections
+  streams <- st_difference(st_combine(streams), st_combine(fp))
+  splits <- st_split(fp, st_combine(streams))
+  splits <- st_collection_extract(splits, "LINESTRING")
+  ends <- rbind(splits[1,], splits[nrow(splits),])
+  ends
+}
+
+fp_ends <- get_path_ends(fp_n_sf, niantic_streams)
+
 ```
 
+3. Get nhd flowline portion of flow path.
 
-5. Get portion of flow path below stream flwolines (it happens, happens a lot)
+```{r}
+# Not quite working yet
+# still gets all streams
+# need to use graphs
+# maybe some ideas in
+#  http://rstudio-pubs-static.s3.amazonaws.com/10396_0359e6e40fd64f1c95044451bd1dfb1c.html
+#  https://geocompr.robinlovelace.net/transport.html#route-networks
+get_flow_lines <- function(fp_ends, streams){
+  flowlines <- st_split(streams, st_combine(fp_ends))
+  flowlines <- st_collection_extract(flowlines, "LINESTRING")
+  browser()
+  flowlines <- flowlines[c(-1,-nrow(flowlines)),]
+  flowlines
+}
+
+fp_flowlines <- get_flow_lines(fp_ends, niantic_streams)
+```
+
 6. Combine together in combo flowpath
+
+```{r}
+combo_flow_path <- st_union(fp_ends[1,],fp_flowlines)
+```
+
 7. Convert to raster.
 
 
