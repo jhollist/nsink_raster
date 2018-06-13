@@ -333,14 +333,15 @@ land_removal <- raster::extract(niantic_n_removal, fp_ends[1,], along = TRUE)
 not_land_removal <- raster::extract(niantic_n_removal, fp_flowlines, along = TRUE)
 fp_removal <- unlist(c(land_removal, not_land_removal))
 fp_removal <- fp_removal[!is.na(fp_removal)]
+fp_removal_max_filter <- zoo::rollmax(fp_removal, 3, fill = NA)
 ```
 
 7. Total Reduction Calculation
 
 ```{r}
-fp_last <- zoo::rollapply(fp_removal, width = 2, partial = TRUE, 
+fp_last <- zoo::rollapply(fp_removal_max_filter, width = 2, partial = TRUE, 
                           function(x) ifelse(x[1]==x[2],0, x[1]))
-fp_last <- ifelse(is.na(fp_last),fp_removal[length(fp_removal)],fp_last)
+fp_last <- ifelse(is.na(fp_last),fp_removal_max_filter[length(fp_removal_max_filter)],fp_last)
 fp_last_removal <- 1-fp_last
 total_removal <- cumprod(c(100,fp_last_removal))
 ```
