@@ -333,10 +333,16 @@ land_removal <- raster::extract(niantic_n_removal, fp_ends[1,], along = TRUE)
 not_land_removal <- raster::extract(niantic_n_removal, fp_flowlines, along = TRUE)
 fp_removal <- unlist(c(land_removal, not_land_removal))
 fp_removal <- fp_removal[!is.na(fp_removal)]
-fp_removal_max_filter <- zoo::rollmax(fp_removal, 3, fill = NA)
 ```
 
-7. Total Reduction Calculation
+7. Vector is Corrector ...
+In some flowpaths that flow along edge of a feature there is a problem caused by the rasterization of that feature which results in the flowpath going in and out of the feature.  A reasonable solution is to use a moving window to filter out these instances.  A window of 3 pixels makes sense as the accepted MMU for a raster is a 3x3 pixel.  In this case, I filter the flow path which limits our removal features to ones that are at least 90m in length. We should discuss this so that all understand and are on board.   
+
+```{r}
+fp_removal_max_filter <- zoo::rollmax(fp_removal, 3)
+```
+
+8. Total Reduction Calculation
 
 ```{r}
 fp_last <- zoo::rollapply(fp_removal_max_filter, width = 2, partial = TRUE, 
@@ -347,54 +353,9 @@ total_removal <- cumprod(c(100,fp_last_removal))
 ```
 
 
-2018-05-09
-Thinking about removal more.  It is NOT necessarily a function of length and can't divide percent removal to get a per pixel removal.  No need to divide by length or pixel size.
-
-Calculate removal per feature and rasterize with that value 
-  - all hydric will be 0.8 * percent hydric
-  - lakes will be total removal for that lake
-  - streams will be total for that reach
-  
-Get vector of removal values, grab last consecutive value, cumprod it.  Example
-
-```{r}
-# removal vector is overlay of flowpath on removal raster
-x<-c(0.8,0.8,0.8,0.02,0.02,0.02,0.02,0.02,0.35,0.35,0.35,0.35,0.35,0.001,0.001,0.35)
-# x_last is the last consectuive instance of that value in the vector
-x_last <- zoo::rollapply(x, width = 2, partial = TRUE, 
-                          function(x) ifelse(x[1]==x[2],0, x[1]))
-x_last <- ifelse(is.na(x_last),x[length(x)],x_last)
-x_last_removal <- 1-x_last
-# Add starting load and cumprod it
-cumprod(c(100,x_last_removal))
-```
-
-Need to query a raster stack with layer of removal, polygon id, and layer type.  Will facilitate 
-- output of removal per type (eg hydric, lake, stream)
-- checking to make sure that consecutive unique features that have same removal don't get lost.  Use feature ID on sliding window, not removal.  
-
-Note: 2018-05-24
-- order of vector from raster is N to South and west to east, not along flow path
-- flow accumulation could be used to order vector...
-- enough slop in raster conversion that still have some cases where cell or two pops out of stream or lake or... Can result in a single removal type (e.g a lake) would be double counted using rollapply.  Smaller resolution on flow path???  Larger window on rollapply??
-
-
 ## Output
 
-What does the output for this look like? Table? Flow path with removal values?  Something else?
-
-Bare minimum is table of removal.  Per segment ideally.
-
-Example output #1 - landcover summary table - Along a 100 m buffer
-
-| Landcover Class | Total Area | 
-|-----------------|------------|
-| Developed       | XX         |
-| Forested        | XX         |
-| Wetland         | XX         |
-| Other           | XX         |
-
-Example output #2 - Nitrogen removal per segment (drop to integer values)
+### Example output #1 - Nitrogen removal per segment (drop to integer values)
 
 | Segement Type | Length | Percent Removal | N in | N out |
 |---------------|--------|-----------------|------|-------|
@@ -403,6 +364,23 @@ Example output #2 - Nitrogen removal per segment (drop to integer values)
 | Stream        | XX     | 16              | 20   | 16.8  |
 | Lake/Pond     | XX     | 23              | 16.8 | 12.9  |
 | Stream        | XX     | 1               | 12.9 | 11.6  |
+
+```{r}
+
+```
+
+### Example output #2 - landcover summary table - Along a 100 m buffer
+
+| Landcover Class | Total Area | 
+|-----------------|------------|
+| Developed       | XX         |
+| Forested        | XX         |
+| Wetland         | XX         |
+| Other           | XX         |
+
+```{r}
+
+```
 
 
 
