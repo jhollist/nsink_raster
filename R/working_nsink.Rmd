@@ -249,6 +249,7 @@ niantic_n_removal <- raster::merge(niantic_lake_removal,
                                     niantic_stream_removal, 
                                     niantic_hydric_removal) 
 niantic_n_removal <- mask(niantic_n_removal, niantic_huc)
+niantic_n_removal[is.na(niantic_n_removal)] <- 0
 ```
 
 # Create and merge removal type raster
@@ -268,6 +269,8 @@ niantic_types <- merge(hydric_type,
                        stream_type,
                        lake_type)
 niantic_types <- mask(niantic_types, niantic_huc)
+niantic_types[is.na(niantic_types)] <- 0
+
 ```
 
 ```{r}
@@ -385,7 +388,18 @@ total_removal <- cumprod(c(100,fp_last_removal))
 | Stream        | XX     | 1               | 12.9 | 11.6  |
 
 ```{r}
-
+land_types <- raster::extract(niantic_types, fp_ends[1,], along = TRUE)
+not_land_types <- raster::extract(niantic_types, fp_flowlines, along = TRUE)
+fp_types <- unlist(c(land_types, not_land_types))
+fp_types <- fp_types[!is.na(fp_types)]
+fp_types_max_filter <- zoo::rollmax(fp_types, 3)
+type_removal_df <- data_frame(type_code = fp_types_max_filter, 
+                              removal = fp_removal_max_filter) %>%
+  mutate(segment_type = case_when(type_code == 0 ~ "No Removal",
+                                  type_code == 1 ~ "Hydric",
+                                  type_code == 2 ~ "Stream",
+                                  type_code == 3 ~ "Lake/Pond"))
+#Need to get segment id's
 ```
 
 ### Example output #2 - landcover summary table - Along a 100 m buffer
