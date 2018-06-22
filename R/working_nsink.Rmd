@@ -232,7 +232,7 @@ niantic_streams %>%
   left_join(cumulative) %>%
   View()
 
-# Merge rasters
+# Merge removal rasters
 
 ```{r}
 #Need to burn in streams into hydric as hydric 30m rasterization erases most 
@@ -249,6 +249,25 @@ niantic_n_removal <- raster::merge(niantic_lake_removal,
                                     niantic_stream_removal, 
                                     niantic_hydric_removal) 
 niantic_n_removal <- mask(niantic_n_removal, niantic_huc)
+```
+
+# Create and merge removal type raster
+
+```{r}
+hydric_type_val <- getValues(niantic_hydric_removal)
+hydric_type_val[hydric_type_val>0] <- 1
+hydric_type_val[hydric_type_val == 0] <- NA #because streams burned in
+hydric_type <- setValues(niantic_hydric_removal, hydric_type_val)
+stream_type_val <- getValues(niantic_stream_removal)
+stream_type_val[!is.na(stream_type_val)] <- 2
+stream_type <- setValues(niantic_stream_removal,stream_type_val)
+lake_type_val <- getValues(niantic_lake_removal)
+lake_type_val[!is.na(lake_type_val)] <- 3
+lake_type <- setValues(niantic_lake_removal, lake_type_val)
+niantic_types <- merge(hydric_type,
+                       stream_type,
+                       lake_type)
+niantic_types <- mask(niantic_types, niantic_huc)
 ```
 
 ```{r}
