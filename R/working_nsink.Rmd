@@ -378,7 +378,7 @@ total_removal <- cumprod(c(100,fp_last_removal))
 
 ### Example output #1 - Nitrogen removal per segment (drop to integer values)
 
-| Segement Type | Length | Percent Removal | N in | N out |
+| Segment Type | Length | Percent Removal | N in | N out |
 |---------------|--------|-----------------|------|-------|
 | Non-hydric    | 8156   | 0               | 100  | 100   |
 | Hydric        | 546    | 80              | 100  | 20    |
@@ -393,25 +393,48 @@ fp_types <- unlist(c(land_types, not_land_types))
 fp_types <- fp_types[!is.na(fp_types)]
 fp_types_max_filter <- zoo::rollmax(fp_types, 3)
 type_removal_df <- data_frame(type_code = fp_types_max_filter, 
-                              removal = fp_removal_max_filter) %>%
+                              removal = fp_last) %>%
   mutate(segment_type = case_when(type_code == 0 ~ "No Removal",
                                   type_code == 1 ~ "Hydric",
                                   type_code == 2 ~ "Stream",
                                   type_code == 3 ~ "Lake/Pond"))
 #Need to get segment id's
+create_id <- function(x){
+  y<-vector("numeric", length(x))
+  y_id<-vector("numeric", length(x))
+  for(i in seq_along(x)){
+    if(i == 1){
+      y[i] <- i
+    } else {
+      y[i] <- ifelse(x[i]==x[i-1], FALSE,i)
+    }
+  }
+  for(i in seq_along(y)){
+    if(i == 1){
+      y[1] <- y[1]
+    } else {
+      y[i] <- ifelse(y[i] == 0, y[i-1], y[i])
+    }
+  }
+  y
+}
+
+type_removal_df <- type_removal_df %>%
+  mutate(segment_id = create_id(paste(type_code,removal))) %>%
+  group_by(segment_id, segment_type) %>%
+  summarize(length = n()*30,
+            n_removal = max(removal)) %>%
+  ungroup()
+n <- nrow(type_removal_df)
+output_1 <- type_removal_df %>%
+  mutate(n_in = round(cumprod(c(100,1-n_removal))[-n],2),
+         n_out = round(cumprod(c(100,1-n_removal))[-1],2),
+         percent_removal = round(n_removal*100,2)) %>%
+  select(segment_type, length, percent_removal, n_in, n_out)
+knitr::kable(output_1)
 ```
 
 ### Example output #2 - map the flowpath with removal, need to figure out base map
-
-
-### Example output #3 - landcover summary table - Along a 100 m buffer
-
-| Landcover Class | Total Area | 
-|-----------------|------------|
-| Developed       | XX         |
-| Forested        | XX         |
-| Wetland         | XX         |
-| Other           | XX         |
 
 ```{r}
 
