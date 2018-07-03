@@ -5,7 +5,6 @@ author:
 - Q Kellogg
 date: '2017-11-27'
 output:
-  pdf_document: default
   html_document:
     df_print: paged
 editor_options:
@@ -402,7 +401,10 @@ type_removal_df <- data_frame(type_code = fp_types_max_filter,
 #Need to get segment id's
 ```
 
-### Example output #2 - landcover summary table - Along a 100 m buffer
+### Example output #2 - map the flowpath with removal, need to figure out base map
+
+
+### Example output #3 - landcover summary table - Along a 100 m buffer
 
 | Landcover Class | Total Area | 
 |-----------------|------------|
