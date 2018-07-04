@@ -263,7 +263,7 @@ niantic_n_removal <- raster::merge(niantic_stream_removal,
 ```{r}
 hydric_type_val <- getValues(niantic_hydric_removal)
 hydric_type_val[hydric_type_val>0] <- 1
-hydric_type_val[hydric_type_val == 0] <- NA #because streams burned in
+hydric_type_val[hydric_type_val == 0] <- NA 
 hydric_type <- setValues(niantic_hydric_removal, hydric_type_val)
 stream_type_val <- getValues(niantic_stream_removal)
 stream_type_val[!is.na(stream_type_val)] <- 2
@@ -271,13 +271,25 @@ stream_type <- setValues(niantic_stream_removal,stream_type_val)
 lake_type_val <- getValues(niantic_lake_removal)
 lake_type_val[!is.na(lake_type_val)] <- 3
 lake_type <- setValues(niantic_lake_removal, lake_type_val)
-niantic_types <- merge(hydric_type,
-                       lake_type)
+niantic_types <- merge(lake_type,
+                       hydric_type)
 niantic_types <- mask(niantic_types, niantic_huc)
 niantic_types[is.na(niantic_types)] <- 0
+# Create mode function:
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+niantic_types_filter <- focal(niantic_types, matrix(1,nrow = 3, ncol = 3), Mode)
 # re-scale back to 30 m
-niantic_types <- projectRaster(niantic_types, empty_raster_30, method = "ngb")
+niantic_types <- projectRaster(niantic_types_filter, empty_raster_30, method = "ngb")
 niantic_types <- raster::merge(stream_type,niantic_types)
+```
+
+Create stack of type and removal
+
+```{r}
+niantic_n_removal_type_stack <- stack(niantic_n_removal, niantic_types)
 ```
 
 ```{r}
@@ -367,12 +379,16 @@ niantic_fp_r <- niantic_fp %>%
                     "value",
                     max)
 niantic_fp_removal_r <- niantic_fp_r * niantic_n_removal
-x <- raster::extract(niantic_fp_removal_r, niantic_fp, along = T)
 #JEFF!!! Look at the list here.  Might solve a lot of the in and out issues.  
 #Also think about filtering the removal raster to remove the small issues first.
 #July 3 - did this - generate removal layer at 10m, focal max filter with 3x3,
 #Then rescale back to 30m.  Lot less empty cells from rasterization mis-match.
-niantic_fp_removal <- raster::extract(niantic_n_removal, niantic_fp,along = TRUE)
+niantic_fp_removal <- raster::extract(niantic_fp_removal_r, niantic_fp,along = TRUE)
+#Need to convert to work with stack
+#fp_removal <- lapply(niantic_fp_removal[-1],function(x) Mode(x[,1]))
+#fp_removal_first <- zoo::rollapply(niantic_fp_removal[1][[1]][,1], width = 2, partial = TRUE, 
+#                          function(x) ifelse(x[1]==x[2],0, x[1]))
+#fp_types <- lapply(niantic_fp_removal[-1],function(x) Mode(x[,2]))
 fp_removal <- unlist(niantic_fp_removal)
 fp_removal <- fp_removal[!is.na(fp_removal)]
 ```
@@ -411,9 +427,9 @@ total_removal <- cumprod(c(100,fp_last_removal))
 niantic_fp_types <- raster::extract(niantic_types, niantic_fp, along = TRUE)
 fp_types <- unlist(niantic_fp_types)
 fp_types <- fp_types[!is.na(fp_types)]
-fp_types_max_filter <- zoo::rollmax(fp_types, 3) #This doesn't necessarily make sense...
+fp_types_max_filter <- zoo::rollapply(fp_types, 3, Mode)
 type_removal_df <- data_frame(type_code = fp_types_max_filter, 
-                              removal = fp_last) %>%
+                              removal = fp_removal_max_filter) %>%
   mutate(segment_type = case_when(type_code == 0 ~ "No Removal",
                                   type_code == 1 ~ "Hydric",
                                   type_code == 2 ~ "Stream",
