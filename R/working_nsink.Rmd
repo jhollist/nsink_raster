@@ -280,7 +280,7 @@ Mode <- function(x) {
   ux <- unique(x)
   ux[which.max(tabulate(match(x, ux)))]
 }
-niantic_types_filter <- focal(niantic_types, matrix(1,nrow = 3, ncol = 3), Mode)
+niantic_types_filter <- focal(niantic_types, matrix(1,nrow = 3, ncol = 3), max) #matches the removal, but max for categories ...
 # re-scale back to 30 m
 niantic_types <- projectRaster(niantic_types_filter, empty_raster_30, method = "ngb")
 niantic_types <- raster::merge(stream_type,niantic_types)
@@ -385,6 +385,7 @@ niantic_fp_removal_r <- niantic_fp_r * niantic_n_removal
 #Then rescale back to 30m.  Lot less empty cells from rasterization mis-match.
 niantic_fp_removal <- raster::extract(niantic_fp_removal_r, niantic_fp,along = TRUE)
 #Need to convert to work with stack
+# try extract stack, then unlist to type and removal check lengths
 #fp_removal <- lapply(niantic_fp_removal[-1],function(x) Mode(x[,1]))
 #fp_removal_first <- zoo::rollapply(niantic_fp_removal[1][[1]][,1], width = 2, partial = TRUE, 
 #                          function(x) ifelse(x[1]==x[2],0, x[1]))
@@ -424,10 +425,11 @@ total_removal <- cumprod(c(100,fp_last_removal))
 | Stream        | XX     | 1               | 12.9 | 11.6  |
 
 ```{r}
+#Need to get working with stack
 niantic_fp_types <- raster::extract(niantic_types, niantic_fp, along = TRUE)
 fp_types <- unlist(niantic_fp_types)
 fp_types <- fp_types[!is.na(fp_types)]
-fp_types_max_filter <- zoo::rollapply(fp_types, 3, Mode)
+fp_types_max_filter <- zoo::rollmax(fp_types, 3)
 type_removal_df <- data_frame(type_code = fp_types_max_filter, 
                               removal = fp_removal_max_filter) %>%
   mutate(segment_type = case_when(type_code == 0 ~ "No Removal",
