@@ -367,38 +367,37 @@ fp_flowlines <- niantic_streams %>%
 
 ```
 
-6. Extract and combine together in combo flowpath vector with removal
+6. Combine together in combo flowpath vector
 
 ```{r}
-niantic_fp <- rbind(fp_ends[1,],select(fp_flowlines, geometry)) %>%
-  mutate(value = 1)  
-  # Trying to figure out how to get this as a single feature for the extract
+niantic_fp <- rbind(fp_ends[1,],select(fp_flowlines, geometry))
+# Collapse into a single linestring
+niantic_fp <- unique(st_coordinates(niantic_fp)[,-3]) %>%
+  st_linestring() %>%
+  st_sfc() %>%
+  st_sf()
+```
 
+
+```{r}
 niantic_fp_r <- niantic_fp %>%
   raster::rasterize(empty_raster_30,
                     "value",
                     max)
 niantic_fp_removal_r <- niantic_fp_r * niantic_n_removal
-#JEFF!!! Look at the list here.  Might solve a lot of the in and out issues.  
-#Also think about filtering the removal raster to remove the small issues first.
-#July 3 - did this - generate removal layer at 10m, focal max filter with 3x3,
-#Then rescale back to 30m.  Lot less empty cells from rasterization mis-match.
-niantic_fp_removal <- raster::extract(niantic_fp_removal_r, niantic_fp,along = TRUE)
-#Need to convert to work with stack
-# try extract stack, then unlist to type and removal check lengths
-#fp_removal <- lapply(niantic_fp_removal[-1],function(x) Mode(x[,1]))
-#fp_removal_first <- zoo::rollapply(niantic_fp_removal[1][[1]][,1], width = 2, partial = TRUE, 
-#                          function(x) ifelse(x[1]==x[2],0, x[1]))
-#fp_types <- lapply(niantic_fp_removal[-1],function(x) Mode(x[,2]))
-fp_removal <- unlist(niantic_fp_removal)
-fp_removal <- fp_removal[!is.na(fp_removal)]
+
+niantic_fp_extract <- raster::extract(niantic_n_removal_type_stack, niantic_fp,
+                                      along = TRUE)
+niantic_fp_removal <- niantic_fp_extract[[1]][,1]
+niantic_fp_types <- niantic_fp_extract[[1]][,2]
 ```
 
 7. Vector is Corrector ...
 In some flowpaths that flow along edge of a feature there is a problem caused by the rasterization of that feature which results in the flowpath going in and out of the feature.  A reasonable solution is to use a moving window to filter out these instances.  A window of 3 pixels makes sense as the accepted MMU for a raster is a 3x3 pixel.  In this case, I filter the flow path which limits our removal features to ones that are at least 90m in length. We should discuss this so that all understand and are on board.   
 
 ```{r}
-fp_removal_max_filter <- zoo::rollmax(fp_removal, 3)
+fp_removal_max_filter <- zoo::rollmax(niantic_fp_removal, 3)
+fp_types_max_filter <- zoo::rollmax(niantic_fp_types, 3)
 ```
 
 8. Total Reduction Calculation
@@ -409,6 +408,7 @@ fp_last <- zoo::rollapply(fp_removal_max_filter, width = 2, partial = TRUE,
 fp_last <- ifelse(is.na(fp_last),fp_removal_max_filter[length(fp_removal_max_filter)],fp_last)
 fp_last_removal <- 1-fp_last
 total_removal <- cumprod(c(100,fp_last_removal))
+min(total_removal)
 ```
 
 
@@ -425,11 +425,6 @@ total_removal <- cumprod(c(100,fp_last_removal))
 | Stream        | XX     | 1               | 12.9 | 11.6  |
 
 ```{r}
-#Need to get working with stack
-niantic_fp_types <- raster::extract(niantic_types, niantic_fp, along = TRUE)
-fp_types <- unlist(niantic_fp_types)
-fp_types <- fp_types[!is.na(fp_types)]
-fp_types_max_filter <- zoo::rollmax(fp_types, 3)
 type_removal_df <- data_frame(type_code = fp_types_max_filter, 
                               removal = fp_removal_max_filter) %>%
   mutate(segment_type = case_when(type_code == 0 ~ "No Removal",
@@ -475,6 +470,7 @@ knitr::kable(output_1)
 ### Example output #2 - map the flowpath with removal, need to figure out base map
 
 ```{r}
+# As of July 19, works up to this point.  Need to get map working
 niantic_fp_r <- niantic_fp %>%
   raster::rasterize(empty_raster_30,
                     "value",
