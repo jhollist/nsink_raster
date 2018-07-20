@@ -1,0 +1,44 @@
+---
+title: "n-sink rasterization: process outline"
+output: html_document
+---
+
+# Acquire
+
+## NHD+ 12-digit HUCs
+
+## NHD+ Flowlines
+
+## NHD+ Waterbodies
+
+## SSURGO
+
+## Impervious Surface
+
+# Create 
+
+## removal raster
+- notes: generate at 10m, filter, re-scale to 30m
+  - need explanation/example as to why this is good...
+
+## type raster
+
+## Combine removal and type
+
+## Flowpath 
+
+# Summarize 
+
+## Extract 
+
+## Clean
+
+## Report
+
+# Now what?
+
+## Static Maps
+
+## R Package
+
+## UI
