@@ -18,12 +18,18 @@ output: html_document
 # Create 
 
 ## removal raster
+- Land removal
+- Lake removal
+- Stream removal
+
 - notes: generate at 10m, filter, re-scale to 30m
   - need explanation/example as to why this is good...
 
 ## type raster
+- start with removal rasters and convert positive removal values to a type
 
 ## Combine removal and type
+- raster stack
 
 ## Flowpath 
 
@@ -42,3 +48,14 @@ output: html_document
 ## R Package
 
 ## UI
+
+- Stay in R?
+  - Shiny
+- ArcGIS?
+  - Would need to use R Bridge for Arc
+    - <https://r-arcgis.github.io/>
+  - Or...
+  - Re-work some portion of the workflow
+    - Flow path generation
+    - Extracting
+    - Summarizing

@@ -367,7 +367,7 @@ fp_flowlines <- niantic_streams %>%
 
 ```
 
-6. Combine together in combo flowpath vector
+6. Combine together in combo flowpath vector and extract data along that flowpath
 
 ```{r}
 niantic_fp <- rbind(fp_ends[1,],select(fp_flowlines, geometry))
@@ -375,14 +375,14 @@ niantic_fp <- rbind(fp_ends[1,],select(fp_flowlines, geometry))
 niantic_fp <- unique(st_coordinates(niantic_fp)[,-3]) %>%
   st_linestring() %>%
   st_sfc() %>%
-  st_sf()
+  st_sf(crs = st_crs(niantic_streams))
 ```
 
 
 ```{r}
 niantic_fp_r <- niantic_fp %>%
   raster::rasterize(empty_raster_30,
-                    "value",
+                    1,
                     max)
 niantic_fp_removal_r <- niantic_fp_r * niantic_n_removal
 
@@ -392,7 +392,7 @@ niantic_fp_removal <- niantic_fp_extract[[1]][,1]
 niantic_fp_types <- niantic_fp_extract[[1]][,2]
 ```
 
-7. Vector is Corrector ...
+7. Vector is Corrector or raster conversion funny business...
 In some flowpaths that flow along edge of a feature there is a problem caused by the rasterization of that feature which results in the flowpath going in and out of the feature.  A reasonable solution is to use a moving window to filter out these instances.  A window of 3 pixels makes sense as the accepted MMU for a raster is a 3x3 pixel.  In this case, I filter the flow path which limits our removal features to ones that are at least 90m in length. We should discuss this so that all understand and are on board.   
 
 ```{r}
@@ -401,6 +401,7 @@ fp_types_max_filter <- zoo::rollmax(niantic_fp_types, 3)
 ```
 
 8. Total Reduction Calculation
+This returns just the total removal along a flow path.
 
 ```{r}
 fp_last <- zoo::rollapply(fp_removal_max_filter, width = 2, partial = TRUE, 
@@ -470,14 +471,7 @@ knitr::kable(output_1)
 ### Example output #2 - map the flowpath with removal, need to figure out base map
 
 ```{r}
-# As of July 19, works up to this point.  Need to get map working
-niantic_fp_r <- niantic_fp %>%
-  raster::rasterize(empty_raster_30,
-                    "value",
-                    max)
-niantic_fp_removal_r <- niantic_fp_r * niantic_n_removal
-x <- raster::extract(niantic_fp_removal_r, niantic_fp, along = T)
-mapview(niantic_fp_removal_r, niantic_fp)
+mapview(niantic_fp_removal_r) + as(niantic_fp, "Spatial")
 ```
 
 
