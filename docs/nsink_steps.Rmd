@@ -17,22 +17,57 @@ options(htmltools.dir.version = FALSE)
 ---
 class: center, middle
 
-# Acquire
+# Acquire 
 
 ---
 # Acquire: NHD+ 12-digit HUCs
 
+- Source file
+  - NHDPlusV21_NE_01_WBDSnapshot_03.7z
+- Source data
+  - Shapefile
+  - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed
 ---
 # Acquire: NHD+ Flowlines
 
+- Source file
+  - NHDPlusV21_NE_01_NHDSnapshot_04.7z
+- Source data
+  - ESRI Raster
+  - NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr
+
 ---
 # Acquire: NHD+ Waterbodies
+
+- Source files
+  - NHDPlusV21_NE_01_NHDSnapshot_04.7z
+  
+---
+# Acquire: NHD+ Flow Direction
+- Source files
+  - NHDPlusV21_NE_01_01a_FdrFac_01.7z
+
+---
+# Acquire: NHD+ Data Tables
 
 ---
 # Acquire: SSURGO
 
 ---
 # Acquire: Impervious Surface
+
+---
+class: center, middle
+
+# Clean
+
+---
+
+#Clean: Specific HUC
+
+---
+
+#Clean: Raster Conformity
 
 ---
 class: center, middle
