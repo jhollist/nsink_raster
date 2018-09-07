@@ -22,49 +22,77 @@ class: center, middle
 ---
 # Acquire: Summary
 
+.left[
 - NHD
 - SSURGO
 - NLCD Impervious Surface
+]
 
+.right[
+![Image of WS with all data layers]()
+]
 ---
 # Acquire: NHD+ 12-digit HUCs
 
+.left[
 - Source file
   - NHDPlusV21_NE_01_WBDSnapshot_03.7z
 - Source data
   - Shapefile
-  - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed
-  
+  - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed]
+
+.right[
+![Image of NE HUCS]()
+]
 ---
 # Acquire: NHD+ Flowlines
 
+.left[
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
   - Shapefile
   - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline
+]
+
+.right[
+![Image of NE flowlines]()
+]
 
 ---
 # Acquire: NHD+ Waterbodies
 
+.left[
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
   - Shapefile
   - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDWaterbody
-  
+]
+
+.right[
+![Image of NE waterbodies]()
+]
+
 ---
 # Acquire: NHD+ Flow Direction
 
+.left[
 - Source file
   - NHDPlusV21_NE_01_01a_FdrFac_01.7z
 - Source data
   - ESRI Raster
   - NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr
-  
+]
+
+.right[
+![Image of NE FD]()
+]
+
 ---
 # Acquire: NHD+ Data Tables
 
+.left[
 - Source files
   - NHDPlusV21_NE_01_NHDPlusAttributes_08.7z
   - NHDPlusV21_NE_01_EROMExtension_05.7z
@@ -72,10 +100,25 @@ class: center, middle
   - dbf
   - Time of Travel (TOTMA): NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf
   - Discharge (Q0001E): NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF 
+]
+
+.right[
+![Image of NE Data tables]()
+]
 
 ---
 # Acquire: SSURGO
 
+.left[
+- Basis for Hydric Soils
+- Anything but straightforward (more later)
+- Download from: ???
+- Which pieces: ???
+]
+
+.right[
+![image of diagram of mu to component to percent]
+]
 ---
 # Acquire: Impervious Surface
 
@@ -116,6 +159,8 @@ class: center, middle
 
 ---
 # Create: Land removal
+
+.left[
 - SSURGO is the basis
 - Only removal from hydric soil
 - Hydric soil that are also impervious surface have no removal
@@ -129,7 +174,18 @@ class: center, middle
   - sum of the percentage of hydirc components
   - a Map Unit is perecent from 0% Hydric to 100% Hydric
   - in practice most are either a lot of hydric area or a little hydric area
-  
+- Spatial - map Unit
+  - Associated components
+- Non-spatial - component
+  - Hydric Boolean
+  - Hydric Percent
+- Output
+  - Polygons with total percent hydric
+]
+
+.right[
+![image of diagram of mu to component to percent]
+]
 ---
 # Create: type raster
 - start with removal rasters and convert positive removal values to a type

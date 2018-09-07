@@ -26,14 +26,30 @@ class: center, middle
 # Acquire 
 
 ---
+# Acquire: Summary
+
+.left[
+- NHD
+- SSURGO
+- NLCD Impervious Surface
+]
+
+.right[
+![Image of WS with all data layers]()
+]
+---
 # Acquire: NHD+ 12-digit HUCs
 
+.left[
 - Source file
   - NHDPlusV21_NE_01_WBDSnapshot_03.7z
 - Source data
   - Shapefile
-  - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed
-  
+  - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed]
+
+.right[
+!
+]
 ---
 # Acquire: NHD+ Flowlines
 
@@ -71,6 +87,7 @@ class: center, middle
   - dbf
   - Time of Travel (TOTMA): NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf
   - Discharge (Q0001E): NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF 
+
 ---
 # Acquire: SSURGO
 
@@ -112,6 +129,22 @@ class: center, middle
 - notes: generate at 10m, filter, re-scale to 30m
   - need explanation/example as to why this is good...
 
+---
+# Create: Land removal
+- SSURGO is the basis
+- Only removal from hydric soil
+- Hydric soil that are also impervious surface have no removal
+- What is left:
+  - Map Unit - spatial
+  - Each Map Unit is made up of any number of non-spatial components
+  - A component is classified as hydric or not
+  - A component takes up a percentage of the map unit area
+  - All components of a map unit sum to 100
+- Hydric Percentage
+  - sum of the percentage of hydirc components
+  - a Map Unit is perecent from 0% Hydric to 100% Hydric
+  - in practice most are either a lot of hydric area or a little hydric area
+  
 ---
 # Create: type raster
 - start with removal rasters and convert positive removal values to a type
