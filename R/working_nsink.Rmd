@@ -126,6 +126,7 @@ names(niantic_ssurgo_sf) <- str_to_lower(names(niantic_ssurgo_sf))
 niantic_ssurgo_tbl <- read_csv(here("data/ssurgo/niantic_SSURGO_component.csv"))%>%
   mutate(mukey = as(mukey, "character")) %>%
   select(mukey, cokey, hydricrating, comppct.r) %>%
+  filter(hydricrating == "Yes") %>%
   group_by(mukey, hydricrating) %>%
   summarize(hydric_pct = sum(comppct.r))
 
@@ -133,7 +134,6 @@ niantic_ssurgo_tbl <- read_csv(here("data/ssurgo/niantic_SSURGO_component.csv"))
 niantic_hydric <- niantic_ssurgo_sf %>%
   mutate(mukey = as(mukey, "character")) %>%
   full_join(niantic_ssurgo_tbl, by = "mukey") %>%
-  filter(hydricrating == "Yes") %>%
   mutate(n_removal = 0.8*(hydric_pct/100)) %>%
   mutate(n_removal = case_when(n_removal == 0 ~ NA_real_,
                                TRUE ~ n_removal))

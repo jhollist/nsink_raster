@@ -33,34 +33,57 @@ class: center, middle
 - Source data
   - Shapefile
   - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed
+  
 ---
 # Acquire: NHD+ Flowlines
 
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
-  - ESRI Raster
-  - NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr
+  - Shapefile
+  - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline
 
 ---
 # Acquire: NHD+ Waterbodies
 
-- Source files
+- Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
+- Source data
+  - Shapefile
+  - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDWaterbody
   
 ---
 # Acquire: NHD+ Flow Direction
-- Source files
-  - NHDPlusV21_NE_01_01a_FdrFac_01.7z
 
+- Source file
+  - NHDPlusV21_NE_01_01a_FdrFac_01.7z
+- Source data
+  - ESRI Raster
+  - NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr
+  
 ---
 # Acquire: NHD+ Data Tables
 
+- Source files
+  - NHDPlusV21_NE_01_NHDPlusAttributes_08.7z
+  - NHDPlusV21_NE_01_EROMExtension_05.7z
+- Source Data
+  - dbf
+  - Time of Travel (TOTMA): NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf
+  - Discharge (Q0001E): NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF 
 ---
 # Acquire: SSURGO
 
 ---
 # Acquire: Impervious Surface
+
+---
+# Acquire: Miscellany
+
+- approximate download time
+- what is needed to download
+- provides all data for all of NE
+- cache data locally 
 
 ---
 class: center, middle
