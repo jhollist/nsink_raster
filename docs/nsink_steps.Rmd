@@ -117,10 +117,20 @@ class: center, middle
 ]
 
 .right[
-![image of diagram of mu to component to percent]
+![image of diagram of mu to component to percent]()
 ]
 ---
 # Acquire: Impervious Surface
+
+.left[
+- used to mask out hydric soils
+- source data: 2007 NLCD Impervious
+- source files: ???
+]
+
+.right[
+![Image of impervious removed from hydric]()
+]
 
 ---
 # Acquire: Miscellany
