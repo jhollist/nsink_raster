@@ -48,38 +48,57 @@ class: center, middle
   - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed]
 
 .right[
-!
+![Image of NE HUCS]()
 ]
 ---
 # Acquire: NHD+ Flowlines
 
+.left[
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
   - Shapefile
   - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline
+]
+
+.right[
+![Image of NE flowlines]()
+]
 
 ---
 # Acquire: NHD+ Waterbodies
 
+.left[
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
   - Shapefile
   - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDWaterbody
-  
+]
+
+.right[
+![Image of NE waterbodies]()
+]
+
 ---
 # Acquire: NHD+ Flow Direction
 
+.left[
 - Source file
   - NHDPlusV21_NE_01_01a_FdrFac_01.7z
 - Source data
   - ESRI Raster
   - NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr
-  
+]
+
+.right[
+![Image of NE FD]()
+]
+
 ---
 # Acquire: NHD+ Data Tables
 
+.left[
 - Source files
   - NHDPlusV21_NE_01_NHDPlusAttributes_08.7z
   - NHDPlusV21_NE_01_EROMExtension_05.7z
@@ -87,20 +106,37 @@ class: center, middle
   - dbf
   - Time of Travel (TOTMA): NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf
   - Discharge (Q0001E): NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF 
+]
+
+.right[
+![Image of NE Data tables]()
+]
 
 ---
 # Acquire: SSURGO
 
+.left[
+- Basis for Hydric Soils
+- Anything but straightforward (more later)
+- Download from: ???
+- Which pieces: ???
+]
+
+.right[
+![image of diagram of mu to component to percent]()
+]
 ---
 # Acquire: Impervious Surface
 
----
-# Acquire: Miscellany
+.left[
+- used to mask out hydric soils
+- source data: 2007 NLCD Impervious
+- source files: ???
+]
 
-- approximate download time
-- what is needed to download
-- provides all data for all of NE
-- cache data locally 
+.right[
+![Image of impervious removed from hydric]()
+]
 
 ---
 class: center, middle
@@ -111,9 +147,45 @@ class: center, middle
 
 #Clean: Specific HUC
 
+- NHD+ is for all of New England
+- Narrow down to Specific HUC 12 
+- Niantic as example
+
 ---
 
 #Clean: Raster Conformity
+
+- Rasters will have small differences
+- Need to force to same origin and projection
+
+
+```
+class       : RasterLayer 
+dimensions  : 31405, 25845, 811662225  (nrow, ncol, ncell)
+resolution  : 30, 30  (x, y)
+extent      : 1643925, 2419275, 2200425, 3142575  (xmin, xmax, ymin, ymax)
+coord. ref. : +proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 
++x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs 
+ 
+ 
+class       : RasterLayer 
+dimensions  : 535, 378, 202230  (nrow, ncol, ncell)
+resolution  : 30, 30  (x, y)
+extent      : 1947688, 1959028, 2281794, 2297844  (xmin, xmax, ymin, ymax)
+coord. ref. : +proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 
++x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs 
+```
+
+---
+
+# Acquire and Clean: Miscellany
+
+- As currently written:
+  - Provides NHD+ data for all of New England
+  - Gets impervious and SSURGO for specific HUC
+  - Cache data locally
+  - Takes ~ 15 minutes for all of this
+    - 90% of that is downloading SSURGO
 
 ---
 class: center, middle
@@ -129,12 +201,19 @@ class: center, middle
 - notes: generate at 10m, filter, re-scale to 30m
   - need explanation/example as to why this is good...
 
+
 ---
 # Create: Land removal
-- SSURGO is the basis
-- Only removal from hydric soil
-- Hydric soil that are also impervious surface have no removal
-- What is left:
+
+- SSURGO hydric soils
+- Impervious Surface masked out
+- Map units and Components to percent hydric
+
+![image of diagram of mu to component to percent]()
+
+
+
+??? 
   - Map Unit - spatial
   - Each Map Unit is made up of any number of non-spatial components
   - A component is classified as hydric or not
@@ -144,10 +223,20 @@ class: center, middle
   - sum of the percentage of hydirc components
   - a Map Unit is perecent from 0% Hydric to 100% Hydric
   - in practice most are either a lot of hydric area or a little hydric area
-  
+- Spatial - map Unit
+  - Associated components
+- Non-spatial - component
+  - Hydric Boolean
+  - Hydric Percent
+- Output
+  - Polygons with total percent hydric
+
 ---
 # Create: type raster
 - start with removal rasters and convert positive removal values to a type
+
+???
+test
 
 ---
 # Create: Combine removal and type

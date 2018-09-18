@@ -149,28 +149,26 @@ class: center, middle
 
 #Clean: Raster Conformity
 
-.left[
 - Rasters will have small differences
 - Need to force to same origin and projection
-]
 
-.right[
 
 ```
 class       : RasterLayer 
 dimensions  : 31405, 25845, 811662225  (nrow, ncol, ncell)
 resolution  : 30, 30  (x, y)
 extent      : 1643925, 2419275, 2200425, 3142575  (xmin, xmax, ymin, ymax)
-coord. ref. : +proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs 
+coord. ref. : +proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 
++x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs 
  
  
 class       : RasterLayer 
 dimensions  : 535, 378, 202230  (nrow, ncol, ncell)
 resolution  : 30, 30  (x, y)
 extent      : 1947688, 1959028, 2281794, 2297844  (xmin, xmax, ymin, ymax)
-coord. ref. : +proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs 
+coord. ref. : +proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 
++x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs 
 ```
-]
 
 ---
 
@@ -197,38 +195,36 @@ class: center, middle
 - notes: generate at 10m, filter, re-scale to 30m
   - need explanation/example as to why this is good...
 
+
 ---
 # Create: Land removal
 
-.left[
-- SSURGO is the basis
-- Only removal from hydric soil
-- Hydric soil that are also impervious surface have no removal
-- What is left:
-  - Map Unit - spatial
-  - Each Map Unit is made up of any number of non-spatial components
-  - A component is classified as hydric or not
-  - A component takes up a percentage of the map unit area
-  - All components of a map unit sum to 100
-- Hydric Percentage
-  - sum of the percentage of hydirc components
-  - a Map Unit is perecent from 0% Hydric to 100% Hydric
-  - in practice most are either a lot of hydric area or a little hydric area
-- Spatial - map Unit
-  - Associated components
-- Non-spatial - component
-  - Hydric Boolean
-  - Hydric Percent
+- SSURGO hydric soils
+- Impervious Surface masked out
+- Combine
+  - Spatial map units 
+  - Non-spatial components 
+    - Hydric/Not hydric
+    - Percent hydric
 - Output
   - Polygons with total percent hydric
-]
+- Rasterize
+  - Pixel value = total percent hydric
+  
+![image of diagram of mu to component to percent]()
 
-.right[
-![image of diagram of mu to component to percent]
-]
+
+- Output
+  - Polygons with total percent hydric
+
+---
+# Create: Lake removal
+
+---
+# Create: Stream removal
+
 ---
 # Create: type raster
-- start with removal rasters and convert positive removal values to a type
 
 ---
 # Create: Combine removal and type
@@ -236,7 +232,12 @@ class: center, middle
 
 ---
 # Create: Flowpath 
-- 
+- Flow direction
+- Starting point
+  - Interactive
+  - Programatic
+  
+![flow direction]()
 
 ---
 class: center, middle
