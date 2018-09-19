@@ -187,16 +187,6 @@ class: center, middle
 # Create 
 
 ---
-# Create: removal raster
-- Land removal
-- Lake removal
-- Stream removal
-
-- notes: generate at 10m, filter, re-scale to 30m
-  - need explanation/example as to why this is good...
-
-
----
 # Create: Land removal
 
 - SSURGO hydric soils
@@ -206,29 +196,50 @@ class: center, middle
   - Non-spatial components 
     - Hydric/Not hydric
     - Percent hydric
-- Output
-  - Polygons with total percent hydric
-- Rasterize
-  - Pixel value = total percent hydric
+  - Sum percent hydric
+- Calculate nitrogen removal
+  - 0.8 * percent hydric
+  - Kellogg et al. 2010, Table 2
   
 ![image of diagram of mu to component to percent]()
-
-
-- Output
-  - Polygons with total percent hydric
-
----
-# Create: Lake removal
 
 ---
 # Create: Stream removal
 
----
-# Create: type raster
+- get Q (Q0001E from EROM_MA0001.DBF)
+- Time of Travel (TOTMA from PlusFlowlineVAA.dbf)
+- Calculate mean reach depth
+  - 0.2612 * Q(in cms)^0.3966^
+  - Kellogg et al. 2010, eq. 6
+- Calculate nitrogen removal
+  - 1 - exp(-0.0513 * mean reach depth^-1.319^)
+  - Kellogg et al. 2010, eq. 5
+  
+![image of stream removal]()
 
 ---
-# Create: Combine removal and type
-- raster stack
+# Create: Lake removal
+
+- Mean depth (MeanDepth from PlusWaterbodyLakeMorphology.dbf)
+- Lake residence time (Sum of TOTMA, for lake flow paths from PlusFlowlineVAA.dbf and NHD+ Streams)
+  - Convert to years
+- Calculate nitrogen removal
+  - 79.24 - 33.26 * log10(Mean Depth/Residence Time)
+  - Kellogg et al. 2010, eq. 1
+
+![image of lake removal]()
+
+---
+# Create: Final rasters
+
+- removal
+ - Convert each to raster at 10m
+ - Merge hydric and lakes
+ - Filter and roll up to 30m
+- type
+- stack
+
+![image of type and removal rasters]()
 
 ---
 # Create: Flowpath 
@@ -236,6 +247,9 @@ class: center, middle
 - Starting point
   - Interactive
   - Programatic
+- Difference
+  - Flow path
+  - Stream flow lines
   
 ![flow direction]()
 
@@ -272,6 +286,15 @@ class: center, middle
 - Facilitates use with other tools
   - e.g. ArcGIS R Bridge
 
+---
+# Now what?: Hybrid approach?
+- Some issues with rasterization process in streams and lakes
+- Use raster for land based only
+- Rest of flow path should be only stream or lake
+  - no need for raster
+- Create flowline with per reach removal
+- Thinking is in process
+  
 ---
 # Now what?: Web UI
 - Stay in R?
