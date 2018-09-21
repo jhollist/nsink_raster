@@ -10,9 +10,18 @@ output:
       highlightStyle: github
       highlightLines: true
 ---
+class: title-slide
 ```{r setup, include=FALSE}
 options(htmltools.dir.version = FALSE)
 ```
+
+# n-sink rasterization: process outline
+</br>
+</br>
+</br>
+</br>
+## Jeff Hollister and Q Kellogg
+## 2018-09-26
 
 ---
 class: center, middle
@@ -22,32 +31,32 @@ class: center, middle
 ---
 # Acquire: Summary
 
-.left[
+.left-column[
 - NHD
 - SSURGO
 - NLCD Impervious Surface
 ]
 
-.right[
+.right-column[
 ![Image of WS with all data layers]()
 ]
 ---
 # Acquire: NHD+ 12-digit HUCs
 
-.left[
+.left-column[
 - Source file
   - NHDPlusV21_NE_01_WBDSnapshot_03.7z
 - Source data
   - Shapefile
   - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed]
 
-.right[
+.right-column[
 ![Image of NE HUCS]()
 ]
 ---
 # Acquire: NHD+ Flowlines
 
-.left[
+.left-column[
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
@@ -55,14 +64,14 @@ class: center, middle
   - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline
 ]
 
-.right[
+.right-column[
 ![Image of NE flowlines]()
 ]
 
 ---
 # Acquire: NHD+ Waterbodies
 
-.left[
+.left-column[
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
@@ -70,14 +79,14 @@ class: center, middle
   - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDWaterbody
 ]
 
-.right[
+.right-column[
 ![Image of NE waterbodies]()
 ]
 
 ---
 # Acquire: NHD+ Flow Direction
 
-.left[
+.left-column[
 - Source file
   - NHDPlusV21_NE_01_01a_FdrFac_01.7z
 - Source data
@@ -85,14 +94,14 @@ class: center, middle
   - NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr
 ]
 
-.right[
+.right-column[
 ![Image of NE FD]()
 ]
 
 ---
 # Acquire: NHD+ Data Tables
 
-.left[
+.left-column[
 - Source files
   - NHDPlusV21_NE_01_NHDPlusAttributes_08.7z
   - NHDPlusV21_NE_01_EROMExtension_05.7z
@@ -102,33 +111,33 @@ class: center, middle
   - Discharge (Q0001E): NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF 
 ]
 
-.right[
+.right-column[
 ![Image of NE Data tables]()
 ]
 
 ---
 # Acquire: SSURGO
 
-.left[
+.left-column[
 - Basis for Hydric Soils
 - Anything but straightforward (more later)
 - Download from: ???
 - Which pieces: ???
 ]
 
-.right[
+.right-column[
 ![image of diagram of mu to component to percent]()
 ]
 ---
 # Acquire: Impervious Surface
 
-.left[
+.left-column[
 - used to mask out hydric soils
 - source data: 2007 NLCD Impervious
 - source files: ???
 ]
 
-.right[
+.right-column[
 ![Image of impervious removed from hydric]()
 ]
 
@@ -242,16 +251,39 @@ class: center, middle
 ![image of type and removal rasters]()
 
 ---
+
+.left-column[
 # Create: Flowpath 
-- Flow direction
+- Flow direction + NHD Plus Streams
 - Starting point
   - Interactive
   - Programatic
 - Difference
   - Flow path
   - Stream flow lines
-  
-![flow direction]()
+]
+
+.right-column[
+<img src="fp_streams.png" style="margin-top:-70px; width:90%;"></img>
+
+<img src="close_fp_streams.png" style="margin-top:-70px; width:90%;"></img>
+]
+
+---
+
+.left-column[
+# Create: Flowpath
+- Use streams, not genearated flowpath
+- Flowpath from land to stream network
+- Combine exsiting stream network with overland flow
+- Fun with graphs!
+]
+
+.right-column[
+<img src="land_fp.png" style="margin-top:-70px; width:90%;"></img>
+
+<img src="stream_graph.png" style="margin-top:-70px; width:90%;"></img>
+]
 
 ---
 class: center, middle
@@ -261,11 +293,63 @@ class: center, middle
 ---
 # Summarize: Extract 
 
+- Combine flowpath
+- Extract raster values along flowpath
+
+![flowpath over stack]()
+
 ---
 # Summarize: Clean
 
+- Removal is now a vector of values
+- Rasterization funny business
+- Filter to 3x3 using time series tools
+- Extract last for each type
+
+```
+#Original
+0.5, 0.5, 0.5, 0.1, 0.5, 0.1, 0.1, 0.1, 0.02, 0.02, 0.8, 0.02, 0.8, 0.02
+#Filtered
+#Last
+```
 ---
+.left-column[
 # Summarize: Report
+
+- Filtered vectors to a dataframe
+- Group on segment id and summarize
+]
+
+.right-column[
+| type_code|   removal|segment_type | segment_id|
+|---------:|---------:|:------------|----------:|
+|         1| 0.0400000|Hydric       |          1|
+|         1| 0.0240000|Hydric       |          2|
+|         1| 0.0240000|Hydric       |          2|
+|         1| 0.0240000|Hydric       |          2|
+|         1| 0.0240000|Hydric       |          2|
+|         1| 0.0240000|Hydric       |          2|
+|         1| 0.0240000|Hydric       |          2|
+|         1| 0.0240000|Hydric       |          2|
+|         3| 0.5691588|Lake/Pond    |          9|
+|         3| 0.5691588|Lake/Pond    |          9|
+
+(Truncated)
+
+|segment_type | length| percent_removal|   n_in| n_out|
+|:------------|------:|---------------:|------:|-----:|
+|Hydric       |     30|           4.000| 100.00| 96.00|
+|Hydric       |    210|           2.400|  96.00| 93.70|
+|Lake/Pond    |   3210|          56.916|  93.70| 40.37|
+|Stream       |    210|           0.015|  40.37| 40.36|
+|Lake/Pond    |    570|          20.872|  40.36| 31.94|
+|Stream       |   2070|           0.055|  31.94| 31.92|
+|Lake/Pond    |    690|           8.654|  31.92| 29.16|
+|Stream       |    150|           0.003|  29.16| 29.16|
+|Lake/Pond    |    690|          35.045|  29.16| 18.94|
+|Lake/Pond    |     90|          69.600|  18.94|  5.76|
+
+]
 
 ---
 class: center, middle

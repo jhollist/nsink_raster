@@ -1,0 +1,53 @@
+/* some custom css for slides */
+
+.title-slide {
+  background-image: url("figure/yawgoo.jpg");
+  background-repeat: no-repeat;
+  background-size: 1500px;
+  
+}
+
+.title-slide h1, h2 {
+  text-align: center;
+  color: #162d50;
+}
+
+.title-slide h3, h4 {
+  text-align: center;
+  color: lightgray;
+  margin: 5px;
+}
+
+.title-slide .remark-slide-number {
+  display: none;
+}
+
+
+/* Two-column layout */
+      .left-column {
+        width: 40%;
+        height: 92%;
+        float: left;
+        color: black;
+      }
+      
+      .right-column {
+        padding: 0;
+        width: 55%;
+        float: right;
+        color: black;
+      }
+
+a {
+  color: #162d50;
+  text-decoration: underline;
+}
+
+.inverse {
+    /*#205493*/
+    background-color: #162d50;
+}
+
+.remark-inline-code {
+  color: #162d50;
+}

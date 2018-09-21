@@ -190,6 +190,7 @@ nhd_lakemorpho <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/Plus
   rename(lake_comid = comid) %>%
   mutate_if(is.factor, as.character())
 
+# Not used
 nhd_lakemorpho_flowline <- read.dbf(here("data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineLakeMorphology.dbf")) %>%
   rename_all(tolower) %>%
   rename(stream_comid = comid) %>%
@@ -220,18 +221,6 @@ niantic_lake_removal <- niantic_waterbodies %>%
                        "n_removal",
                        fun = "max") 
 ```
-
-# Getting a couple of NA lakes.  Need to figure out why and what to do about it...
-# Look at Q's estimates and lake and catchement area.
-
-# Gets Drainage Area
-cumulative <- read.dbf(here("/data/NHDPlusNE/NHDPlus01/NHDPlusAttributes/CumulativeArea.dbf")) %>%
-  mutate_if(is.factor, as.character()) %>%
-  rename_all(tolower) %>%
-  rename(stream_comid = comid)
-niantic_streams %>%
-  left_join(cumulative) %>%
-  View()
 
 # Merge removal rasters
 
