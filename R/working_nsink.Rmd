@@ -382,7 +382,9 @@ niantic_fp_types <- niantic_fp_extract[[1]][,2]
 ```
 
 7. Vector is Corrector or raster conversion funny business...
-In some flowpaths that flow along edge of a feature there is a problem caused by the rasterization of that feature which results in the flowpath going in and out of the feature.  A reasonable solution is to use a moving window to filter out these instances.  A window of 3 pixels makes sense as the accepted MMU for a raster is a 3x3 pixel.  In this case, I filter the flow path which limits our removal features to ones that are at least 90m in length. We should discuss this so that all understand and are on board.   
+In some flowpaths that flow along edge of a feature there is a problem caused by the rasterization of that feature which results in the flowpath going in and out of the feature.  A reasonable solution is to use a moving window to filter out these instances.  A window of 3 pixels makes sense as the accepted MMU for a raster is a 3x3 pixel.  In this case, I filter the flow path which limits our removal features to ones that are at least 90m in length. We should discuss this so that all understand and are on board.  
+
+As I am working on summarizing this, I think it may be possible to avoid this by NOT rasterizing the stream and lake.  All of the info is by stream reach (artifical flow path or not).  This rasterization problem is of our (mine) making.  re-think how to calculate flow path removal with hybrid raster (land based) and vector (NHD Plus flowlines).  In the meantime, what is below is how to pull this info out of the raster only approach.
 
 ```{r}
 fp_removal_max_filter <- zoo::rollmax(niantic_fp_removal, 3)
