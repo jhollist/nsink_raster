@@ -462,7 +462,9 @@ knitr::kable(output_1)
 ### Example output #2 - map the flowpath with removal, need to figure out base map
 
 ```{r}
-mapview(niantic_fp_removal_r) + as(niantic_fp, "Spatial")
+mapview(niantic_fp_removal_r, na.color = "transparent", map.types = "Esri.WorldImagery") +
+  mapview(as(niantic_huc, "Spatial"), col.regions = "white", alpha.regions = 0.2) + 
+  mapview(as(niantic_fp, "Spatial"),color = "dark blue", lwd = 5)
 ```
 
 
