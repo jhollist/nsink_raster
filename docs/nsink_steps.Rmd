@@ -225,6 +225,7 @@ class: center, middle
 ---
 # Create: Land removal
 
+.pull-left[
 - SSURGO hydric soils
 - Impervious Surface masked out
 - Combine
@@ -237,6 +238,14 @@ class: center, middle
   - 0.8 * percent hydric
   - Kellogg et al. 2010, Table 2
 - Dry Erase Time!
+]
+
+.pull-right[
+```{r, echo=FALSE}
+qm <- qmap(niantic_hydric_removal)
+```
+]
+
 
 ---
 # Create: Stream removal
