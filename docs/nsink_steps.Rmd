@@ -1,5 +1,5 @@
 ---
-title: "n-sink rasterization: process outline"
+title: "n-sink rasterization"
 author: "Jeffrey Hollister"
 date: "2018-08-10"
 output:
@@ -9,13 +9,32 @@ output:
     nature:
       highlightStyle: github
       highlightLines: true
+      countIncrementalSlides: true
+    seal: false
+    self_contained: true
+editor_options: 
+  chunk_output_type: console
 ---
 class: title-slide
+
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
 options(htmltools.dir.version = FALSE)
+pkgs <- c("here","archive", "httr", "raster", "sp", "rgdal", "tidyverse", "sf",
+          "FedData","foreign", "fasterize", "mapview", "quickmapr", "lwgeom")
+for(i in pkgs){
+  if(i == "archive" & !i %in% installed.packages()){
+    devtools::install_github("jimhester/archive")
+  } else if(!i %in% installed.packages()){
+    install.packages(i)
+  }
+}
+x<-lapply(pkgs, library, character.only = TRUE)
+load("examp_run.Rda")
 ```
 
-# n-sink rasterization: process outline
+# N-Sink Rasterization: 
+## Process Outline
 </br>
 </br>
 </br>
@@ -31,77 +50,81 @@ class: center, middle
 ---
 # Acquire: Summary
 
-.left-column[
 - NHD
 - SSURGO
 - NLCD Impervious Surface
-]
 
-.right-column[
-![Image of WS with all data layers]()
+.center[
+```{r, echo=FALSE, out.width='60%'}
+qm<-qmap(st_geometry(niantic_huc),
+         st_geometry(niantic_ssurgo_sf),
+         st_geometry(niantic_streams),
+         st_zm(st_geometry(niantic_waterbodies)),
+         colors = c("white","brown","blue","darkblue"),fill = T)
+```
 ]
 ---
 # Acquire: NHD+ 12-digit HUCs
 
-.left-column[
 - Source file
   - NHDPlusV21_NE_01_WBDSnapshot_03.7z
 - Source data
   - Shapefile
-  - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed]
+  - NHDPlusNE/NHDPlus01/WBDSnapshot/WBD/WBD_Subwatershed
 
-.right-column[
-![Image of NE HUCS]()
+.center[
+```{r, echo=FALSE, out.width='50%'}
+qm<-qmap(st_geometry(huc12_ne), colors = "slategray", fill = T)
+```
 ]
 ---
 # Acquire: NHD+ Flowlines
 
-.left-column[
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
   - Shapefile
   - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDFlowline
-]
 
-.right-column[
-![Image of NE flowlines]()
+.center[
+```{r, echo=FALSE, out.width='50%'}
+qm<-qmap(st_geometry(ne_streams), colors = "blue")
+```
 ]
 
 ---
 # Acquire: NHD+ Waterbodies
 
-.left-column[
 - Source file
   - NHDPlusV21_NE_01_NHDSnapshot_04.7z
 - Source data
   - Shapefile
   - NHDPlusNE/NHDPlus01/NHDSnapshot/Hydrography/NHDWaterbody
-]
 
-.right-column[
-![Image of NE waterbodies]()
+.center[
+```{r, echo=FALSE, out.width='50%'}
+qm<-qmap(st_zm(st_geometry(ne_waterbodies)), colors = "darkblue", fill = T)
+```
 ]
 
 ---
 # Acquire: NHD+ Flow Direction
 
-.left-column[
 - Source file
   - NHDPlusV21_NE_01_01a_FdrFac_01.7z
 - Source data
   - ESRI Raster
   - NHDPlusNE/NHDPlus01/NHDPlusFdrFac01a/fdr
-]
 
-.right-column[
-![Image of NE FD]()
+.center[
+```{r, echo=FALSE, out.width='50%'}
+qm<-qmap(fdr_ne)
+```
 ]
 
 ---
 # Acquire: NHD+ Data Tables
 
-.left-column[
 - Source files
   - NHDPlusV21_NE_01_NHDPlusAttributes_08.7z
   - NHDPlusV21_NE_01_EROMExtension_05.7z
@@ -109,36 +132,35 @@ class: center, middle
   - dbf
   - Time of Travel (TOTMA): NHDPlusNE/NHDPlus01/NHDPlusAttributes/PlusFlowlineVAA.dbf
   - Discharge (Q0001E): NHDPlusNE/NHDPlus01/EROMExtension/EROM_MA0001.DBF 
-]
 
-.right-column[
-![Image of NE Data tables]()
-]
 
 ---
 # Acquire: SSURGO
 
-.left-column[
 - Basis for Hydric Soils
 - Anything but straightforward (more later)
-- Download from: ???
-- Which pieces: ???
-]
+- `FedData::get_ssurgo()`
+- Niantic only
+- Spatial and tabular 
 
-.right-column[
-![image of diagram of mu to component to percent]()
+.center[
+```{r, echo=FALSE, out.height='50%', out.width='50%'}
+qm<-qmap(st_geometry(niantic_ssurgo_sf), colors = "brown", fill = TRUE)
+```
 ]
 ---
 # Acquire: Impervious Surface
 
-.left-column[
 - used to mask out hydric soils
 - source data: 2007 NLCD Impervious
-- source files: ???
-]
+- `FedData::get_nlcd()`
+- Niantic only
+- Raster
 
-.right-column[
-![Image of impervious removed from hydric]()
+.center[
+```{r, echo=FALSE, out.height='55%', out.width='55%'}
+qm<-qmap(niantic_imp)
+```
 ]
 
 ---
@@ -154,6 +176,11 @@ class: center, middle
 - Narrow down to Specific HUC 12 
 - Niantic as example
 
+.center[
+```{r, echo=FALSE, out.width='60%'}
+qm<-qmap(niantic_huc, colors = "darkblue", fill = TRUE)
+```
+]
 ---
 
 #Clean: Raster Conformity
@@ -209,12 +236,12 @@ class: center, middle
 - Calculate nitrogen removal
   - 0.8 * percent hydric
   - Kellogg et al. 2010, Table 2
-  
-![image of diagram of mu to component to percent]()
+- Dry Erase Time!
 
 ---
 # Create: Stream removal
 
+.left-column[
 - get Q (Q0001E from EROM_MA0001.DBF)
 - Time of Travel (TOTMA from PlusFlowlineVAA.dbf)
 - Calculate mean reach depth
@@ -223,20 +250,31 @@ class: center, middle
 - Calculate nitrogen removal
   - 1 - exp(-0.0513 * mean reach depth^-1.319^)
   - Kellogg et al. 2010, eq. 5
-  
-![image of stream removal]()
+]
+
+.right-column[ 
+```{r, echo=FALSE, out.width='100%'}
+qm<-qmap(niantic_stream_removal)
+```
+]
 
 ---
 # Create: Lake removal
 
+.left-column[
 - Mean depth (MeanDepth from PlusWaterbodyLakeMorphology.dbf)
 - Lake residence time (Sum of TOTMA, for lake flow paths from PlusFlowlineVAA.dbf and NHD+ Streams)
   - Convert to years
 - Calculate nitrogen removal
   - 79.24 - 33.26 * log10(Mean Depth/Residence Time)
   - Kellogg et al. 2010, eq. 1
+]
 
-![image of lake removal]()
+.right-column[
+```{r, echo=FALSE, out.width='100%'}
+qm<-qmap(niantic_lake_removal)
+```
+]
 
 ---
 # Create: Final rasters
@@ -248,8 +286,14 @@ class: center, middle
 - type
 - stack
 
-![image of type and removal rasters]()
+.center[
+```{r, echo=FALSE, fig.hold='hold', out.width='50%'}
 
+plot(niantic_n_removal)
+plot(niantic_types)
+
+```
+]
 ---
 
 .left-column[
@@ -264,9 +308,9 @@ class: center, middle
 ]
 
 .right-column[
-<img src="fp_streams.png" style="margin-top:-70px; width:90%;"></img>
+<img src="figures/fp_streams.png" style="margin-top:-50px; width:90%;"></img>
 
-<img src="close_fp_streams.png" style="margin-top:-70px; width:90%;"></img>
+<img src="figures/close_fp_streams.png" style="margin-top:-50px; width:90%;"></img>
 ]
 
 ---
@@ -280,9 +324,9 @@ class: center, middle
 ]
 
 .right-column[
-<img src="land_fp.png" style="margin-top:-70px; width:90%;"></img>
+<img src="figures/land_fp.png" style="margin-top:-50px; width:90%;"></img>
 
-<img src="stream_graph.png" style="margin-top:-70px; width:90%;"></img>
+<img src="figures/stream_graph.png" style="margin-top:-50px; width:90%;"></img>
 ]
 
 ---
@@ -296,7 +340,11 @@ class: center, middle
 - Combine flowpath
 - Extract raster values along flowpath
 
-![flowpath over stack]()
+.center[
+```{r, echo=FALSE, out.width='60%'}
+qm<-qmap(niantic_n_removal, niantic_fp, colors = c(NA, "darkblue"))
+```
+]
 
 ---
 # Summarize: Clean
@@ -310,33 +358,34 @@ class: center, middle
 #Original
 0.5, 0.5, 0.5, 0.1, 0.5, 0.1, 0.1, 0.1, 0.02, 0.02, 0.8, 0.02, 0.8, 0.02
 #Filtered
+0.5, 0.5, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1, 0.8, 0.8, 0.8, 0.8
 #Last
+0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.8
 ```
 ---
-.left-column[
 # Summarize: Report
 
 - Filtered vectors to a dataframe
 - Group on segment id and summarize
+
+.left-column[
+| typ e code|   removal|type | id|
+|----:|---------:|:------------|----------:|
+|    1| 0.040|Hydric       |          1|
+|    1| 0.024|Hydric       |          2|
+|    1| 0.024|Hydric       |          2|
+|    1| 0.024|Hydric       |          2|
+|    1| 0.024|Hydric       |          2|
+|    1| 0.024|Hydric       |          2|
+|    1| 0.024|Hydric       |          2|
+|    1| 0.024|Hydric       |          2|
+|    3| 0.569|Lake/Pond    |          9|
+|    3| 0.569|Lake/Pond    |          9|
 ]
 
 .right-column[
-| type_code|   removal|segment_type | segment_id|
-|---------:|---------:|:------------|----------:|
-|         1| 0.0400000|Hydric       |          1|
-|         1| 0.0240000|Hydric       |          2|
-|         1| 0.0240000|Hydric       |          2|
-|         1| 0.0240000|Hydric       |          2|
-|         1| 0.0240000|Hydric       |          2|
-|         1| 0.0240000|Hydric       |          2|
-|         1| 0.0240000|Hydric       |          2|
-|         1| 0.0240000|Hydric       |          2|
-|         3| 0.5691588|Lake/Pond    |          9|
-|         3| 0.5691588|Lake/Pond    |          9|
 
-(Truncated)
-
-|segment_type | length| percent_removal|   n_in| n_out|
+|type | length| % removal|   n_in| n_out|
 |:------------|------:|---------------:|------:|-----:|
 |Hydric       |     30|           4.000| 100.00| 96.00|
 |Hydric       |    210|           2.400|  96.00| 93.70|
@@ -348,8 +397,17 @@ class: center, middle
 |Stream       |    150|           0.003|  29.16| 29.16|
 |Lake/Pond    |    690|          35.045|  29.16| 18.94|
 |Lake/Pond    |     90|          69.600|  18.94|  5.76|
-
 ]
+
+---
+
+# Summarize: Map
+
+```{r, echo=FALSE, out.width='100%', cache=FALSE}
+mapview(niantic_fp_removal_r, na.color = "transparent", map.types = "Esri.WorldImagery") +
+  mapview(as(niantic_huc, "Spatial"), col.regions = "white", alpha.regions = 0.2) + 
+  mapview(as(niantic_fp, "Spatial"),color = "dark blue", lwd = 5)
+```
 
 ---
 class: center, middle
