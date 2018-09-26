@@ -15,7 +15,7 @@ editor_options:
 
 ```{r}
 pkgs <- c("here","archive", "httr", "raster", "sp", "rgdal", "tidyverse", "sf",
-          "FedData","foreign", "fasterize", "mapview", "quickmapr", "lwgeom")
+          "FedData","foreign", "fasterize", "mapview", "quickmapr", "lwgeom","zoo")
 for(i in pkgs){
   if(i == "archive" & !i %in% installed.packages()){
     devtools::install_github("jimhester/archive")
